@@ -1,5 +1,6 @@
 # RUN: python %s | filecheck %s
 
+from ctypes import c_int32
 from xdsl.dialects import bigint, builtin
 from xdsl.frontend.pyast.context import PyASTContext
 
@@ -20,10 +21,15 @@ def foo(x: int) -> int:
 print(foo.module)
 
 
+def to_i32(x: int) -> c_int32: 
+    return c_int32(x)
+
 ctx2 = PyASTContext()
 ctx2.register_type(int, bigint.bigint)
+ctx2.register_type(c_int32, builtin.i32)
 ctx2.register_type(float, builtin.f64)
 ctx2.register_type(bool, builtin.i1)
+ctx2.register_function(to_i32, bigint.ToIntOp)
 ctx2.register_function(int.__add__, bigint.AddOp)
 ctx2.register_function(int.__sub__, bigint.SubOp)
 ctx2.register_function(int.__mul__, bigint.MulOp)
@@ -43,6 +49,21 @@ ctx2.register_function(int.__ge__, bigint.GteOp)
 ctx2.register_function(int.__lt__, bigint.LtOp)
 ctx2.register_function(int.__le__, bigint.LteOp)
 
+# CHECK: bigint.constant #builtin.int<0>
+@ctx2.parse_program
+def test_constant() -> int:
+    return 0
+
+print(test_constant.module)
+
+# CHECK: %[[B:.*]] = bigint.constant #builtin.int<5>
+# CHECK: bigint.to_int %[[B]] : !i32
+@ctx2.parse_program
+def test_to_int(a: int, b : int) -> c_int32:
+    v = a + b
+    return to_i32(v)
+
+print(test_to_int.module)
 
 # CHECK: bigint.add %{{.*}}, %{{.*}} : !bigint.bigint
 @ctx2.parse_program

@@ -255,36 +255,21 @@ class CodeGenerationVisitor(ast.NodeVisitor):
 
         # Resolve arguments
         assert self.symbol_table is not None
-        args: list[symref.FetchOp] = []
+        args = []
         for arg in node.args:
-            if not isinstance(arg, ast.Name) or arg.id not in self.symbol_table:
-                raise CodeGenerationException(
-                    self.file,
-                    node.lineno,
-                    node.col_offset,
-                    "Function arguments must be declared variables.",
-                )
-            args.append(arg_op := symref.FetchOp(arg.id, self.symbol_table[arg.id]))
-            self.inserter.insert_op(arg_op)
+            # Visit the argument expression to evaluate it
+            self.visit(arg)
+            # Get the resulting operand from the expression
+            args.append(self.inserter.get_operand())
 
         # Resolve keyword arguments
-        kwargs: dict[str, symref.FetchOp] = {}
+        kwargs = {}
         for keyword in node.keywords:
-            if (
-                not isinstance(keyword.value, ast.Name)
-                or keyword.value.id not in self.symbol_table
-            ):
-                raise CodeGenerationException(
-                    self.file,
-                    node.lineno,
-                    node.col_offset,
-                    "Function arguments must be declared variables.",
-                )
             assert keyword.arg is not None
-            kwargs[keyword.arg] = symref.FetchOp(
-                keyword.value.id, self.symbol_table[keyword.value.id]
-            )
-            self.inserter.insert_op(kwargs[keyword.arg])
+            # Visit the keyword value expression to evaluate it
+            self.visit(keyword.value)
+            # Get the resulting operand from the expression
+            kwargs[keyword.arg] = self.inserter.get_operand()
 
         self.inserter.insert_op(ir_op(*args, **kwargs))
 

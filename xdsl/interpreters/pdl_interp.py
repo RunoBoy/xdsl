@@ -497,3 +497,66 @@ class PDLInterpFunctions(InterpreterFunctions):
     ):
         PDLInterpFunctions.set_rewriter(interpreter, None)
         return ReturnedValues(()), ()
+
+    @impl(pdl_interp.GetRegionOp)
+    def run_get_region(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.GetRegionOp,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert len(args) == 1
+        assert isinstance(args[0], Operation)
+        if len(args[0].regions) == 0:
+            return (None,)
+
+        return (args[0].regions[0],)
+
+    @impl(pdl_interp.GetRegionResultsOp)
+    def run_get_region_results(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.GetRegionResultsOp,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert len(args) == 1
+
+        ops = []
+        for op in args[0]:
+            if len(op.results) == 1:
+                ops.append(op)
+
+        return (ops,)
+
+    @impl(pdl_interp.ReplaceRegionOp)
+    def run_region_replace(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.ReplaceRegionOp,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert args
+        input_op = args[0]
+        assert isinstance(input_op, Operation)
+
+        # Get the operations and their results
+        region_operations = [x.clone() for x in args[1]]
+        region_results = [x.result for x in region_operations]
+
+        self.get_rewriter(interpreter).replace_region_op(
+            input_op, new_ops=region_operations, new_results=region_results
+        )
+        return ()
+
+    @impl(pdl_interp.GetLastOperationRegionOp)
+    def run_region_get_last_operation(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.GetLastOperationRegionOp,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert args
+        input_op = args[0]
+        assert isinstance(input_op, Operation)
+
+        return (input_op,)

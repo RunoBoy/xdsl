@@ -311,6 +311,58 @@ class PatternRewriter(Builder, PatternRewriterListener):
         self.has_done_action = True
         self.handle_operation_modification(op)
 
+    def replace_region_op(
+        self,
+        op: Operation,
+        new_ops: Operation | Sequence[Operation],
+        new_results: Sequence[SSAValue | None] | None = None,
+        safe_erase: bool = True,
+    ):
+        """
+        Replace an operation with new operations.
+        Also, optionally specify SSA values to replace the operation results.
+        If safe_erase is True, check that the operation has no uses.
+        Otherwise, replace its uses with ErasedSSAValue.
+        """
+        self.has_done_action = True
+
+        if isinstance(new_ops, Operation):
+            new_ops = (new_ops,)
+
+        # First, insert the new operations before the matched operation
+        self.insert_op(new_ops, InsertPoint.before(op))
+
+        if new_results is None:
+            new_results = new_ops[-1].results if new_ops else []
+
+        # if len(op.results) != len(new_results):
+        #     raise ValueError(
+        #         f"Expected {len(op.results)} new results, but got {len(new_results)}"
+        #     )
+
+        # Then, replace the results with new ones
+        # self.handle_operation_replacement(op, new_results)
+        # for old_result, new_result in zip(op.results, new_results):
+        #     self.replace_all_uses_with(old_result, new_result, safe_erase=safe_erase)
+        #
+        #     # Preserve name hints for ops with multiple results
+        #     if new_result is not None and not new_result.name_hint:
+        #         new_result.name_hint = old_result.name_hint
+
+        # Add name hints for existing ops, only if there is a single new result
+        if (
+            len(new_results) == 1
+            and (only_result := new_results[0]) is not None
+            and (name_hint := only_result.name_hint) is not None
+        ):
+            for new_op in new_ops:
+                for res in new_op.results:
+                    if not res.name_hint:
+                        res.name_hint = name_hint
+
+        # Then, erase the original operation
+        self.erase_op(op, safe_erase=safe_erase)
+
 
 class RewritePattern(ABC):
     """

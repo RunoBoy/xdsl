@@ -130,14 +130,23 @@ class ValueType(ParametrizedAttribute, TypeAttribute):
     name = "pdl.value"
 
 
-AnyPDLType = AttributeType | OperationType | TypeType | ValueType
+@irdl_attr_definition
+class RegionType(ParametrizedAttribute, TypeAttribute):
+    name = "pdl.region"
+
+
+AnyPDLType = AttributeType | OperationType | TypeType | ValueType | RegionType
 AnyPDLTypeConstr = (
-    base(AttributeType) | base(OperationType) | base(TypeType) | base(ValueType)
+    base(AttributeType)
+    | base(OperationType)
+    | base(TypeType)
+    | base(ValueType)
+    | base(RegionType)
 )
 
 _RangeT = TypeVar(
     "_RangeT",
-    bound=AttributeType | OperationType | TypeType | ValueType,
+    bound=AttributeType | OperationType | TypeType | ValueType | RegionType,
     covariant=True,
 )
 
@@ -158,6 +167,8 @@ class RangeType(ParametrizedAttribute, TypeAttribute, Generic[_RangeT]):
             element_type = TypeType()
         elif parser.parse_optional_keyword("value") is not None:
             element_type = ValueType()
+        elif parser.parse_optional_keyword("region") is not None:
+            element_type = RegionType()
         else:
             parser.raise_error("expected PDL element type for range")
         parser.parse_punctuation(">")
@@ -173,6 +184,8 @@ class RangeType(ParametrizedAttribute, TypeAttribute, Generic[_RangeT]):
                 printer.print_string("<type>")
             case ValueType():
                 printer.print_string("<value>")
+            case RegionType():
+                printer.print_string("<region>")
 
 
 @irdl_op_definition
@@ -332,6 +345,15 @@ class OperandOp(IRDLOperation):
 
     def verify_(self):
         verify_has_binding_use(self)
+
+
+@irdl_op_definition
+class RegionOp(IRDLOperation):
+    name = "pdl.region"
+    value_type = opt_operand_def(TypeType)
+    value = result_def(ValueType)
+
+    assembly_format = "(`:` $value_type^)? attr-dict"
 
 
 @irdl_op_definition
@@ -915,6 +937,7 @@ PDL = Dialect(
         RewriteOp,
         TypeOp,
         TypesOp,
+        RegionOp,
     ],
     [
         AttributeType,
@@ -922,5 +945,6 @@ PDL = Dialect(
         TypeType,
         ValueType,
         RangeType,
+        RegionType,
     ],
 )

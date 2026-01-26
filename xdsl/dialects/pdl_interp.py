@@ -1052,14 +1052,16 @@ class GetRegionOp(IRDLOperation):
 
     name = "pdl_interp.get_region"
     input_op = operand_def(OperationType)
-    # value = result_def(RangeType[ValueType])
+    index = prop_def(IntegerAttr[I32])
     value = result_def(RegionType)
 
-    assembly_format = "`of` $input_op `:` type($value) attr-dict"
+    assembly_format = "$index `of` $input_op `:` type($value) attr-dict"
 
-    def __init__(self, input_op: SSAValue) -> None:
+    def __init__(self, index: int | IntegerAttr[I32], input_op: SSAValue) -> None:
+        if isinstance(index, int):
+            index = IntegerAttr.from_int_and_width(index, 32)
         super().__init__(
-            # operands=[input_op], result_types=[RangeType[ValueType]]
+            properties={"index": index},
             operands=[input_op],
             result_types=[RegionType],
         )

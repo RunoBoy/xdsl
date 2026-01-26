@@ -38,7 +38,7 @@ pdl_interp.func @matcher(%arg0: !pdl.operation) {
 
 module @rewriters {
     pdl_interp.func @pdl_generated_rewriter_1(%arg0: !pdl.operation) {
-      %0 = pdl_interp.get_region of %arg0 : !pdl.region
+      %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
 //      %1 = pdl_interp.get_result 0 of %arg0
 //      %2 = pdl_interp.get_last_operation of %arg0
 //      %3 = pdl_interp.get_operand 0 of %2

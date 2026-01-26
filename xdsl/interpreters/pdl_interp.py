@@ -507,10 +507,10 @@ class PDLInterpFunctions(InterpreterFunctions):
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
-        if len(args[0].regions) == 0:
+        if len(args[0].regions) == 0 or op.index.value.data >= len(args[0].regions):
             return (None,)
 
-        return (args[0].regions[0],)
+        return (args[0].regions[op.index.value.data],)
 
     @impl(pdl_interp.GetRegionResultsOp)
     def run_get_region_results(

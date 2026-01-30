@@ -85,22 +85,6 @@ signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
 
-# @irdl_op_definition
-# class GetRegionOp(IRDLOperation):
-#     """
-#     See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpget_operand-pdl_interpgetoperandop).
-#     """
-#
-#     name = "pdl_interp.get_region"
-#     input_op = operand_def(OperationType)
-#     value = result_def(ValueType)
-#
-#     assembly_format = "`of` $input_op attr-dict"
-#
-#     def __init__(self, input_op: SSAValue) -> None:
-#         super().__init__(operands=[input_op], result_types=[ValueType()])
-
-
 @irdl_op_definition
 class GetOperandOp(IRDLOperation):
     """
@@ -1026,24 +1010,6 @@ class CreateTypesOp(IRDLOperation):
         )
 
 
-#
-# @irdl_op_definition
-# class GetRegionOp(IRDLOperation):
-#     """
-#     See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpget_operand-pdl_interpgetoperandop).
-#     """
-#
-#     name = "pdl_interp.get_region"
-#     input_op = operand_def(OperationType)
-#     value = result_def(RangeType[ValueType])
-#
-#     assembly_format = "`of` $input_op attr-dict"
-#
-#     def __init__(self, input_op: SSAValue) -> None:
-#         super().__init__(operands=[input_op], result_types=[RangeType[ValueType]])
-#
-
-
 @irdl_op_definition
 class GetRegionOp(IRDLOperation):
     """
@@ -1123,6 +1089,23 @@ class ReplaceRegionOp(IRDLOperation):
         super().__init__(operands=[input_op, repl_values])
 
 
+@irdl_op_definition
+class DebugPrintStatement(IRDLOperation):
+    """
+    An operation that prints a debug message during interpretation.
+    """
+
+    name = "pdl_interp.debug_print"
+    message = prop_def(StringAttr)
+
+    assembly_format = "`message` `(` $message `)` attr-dict"
+
+    def __init__(self, message: str | StringAttr) -> None:
+        if isinstance(message, str):
+            message = StringAttr(message)
+        super().__init__(properties={"message": message})
+
+
 PDLInterp = Dialect(
     "pdl_interp",
     [
@@ -1154,5 +1137,6 @@ PDLInterp = Dialect(
         GetRegionResultsOp,
         ReplaceRegionOp,
         GetLastOperationRegionOp,
+        DebugPrintStatement,
     ],
 )

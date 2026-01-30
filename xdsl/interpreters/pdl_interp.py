@@ -14,7 +14,7 @@ from xdsl.interpreter import (
     impl_terminator,
     register_impls,
 )
-from xdsl.ir import Attribute, Operation, OpResult, SSAValue
+from xdsl.ir import Attribute, Operation, OpResult, Region, SSAValue
 from xdsl.irdl import IRDLOperation
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
@@ -391,6 +391,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         attr_names: list[str],
         num_operands: int,
         num_attributes: int,
+        num_regions: int,
     ) -> IRDLOperation:
         # Get operation name
         ctx = PDLInterpFunctions.get_ctx(interpreter)
@@ -418,12 +419,21 @@ class PDLInterpFunctions(InterpreterFunctions):
                 attributes[name] = prop_or_attr
         result_types = list(args[num_operands + num_attributes :])
 
+        # TODO Region is seen as an operand up until this point, while it works, it's not that logical nor easy to understand
+        filtered_regions = [x for x in operands if isinstance(x, Region)]
+        filtered_operands = [x for x in operands if not isinstance(x, Region)]
+
+        # remove parent
+        for region in filtered_regions:
+            region.parent = None
+
         # Create the new operation
         result_op = op_type.create(
-            operands=operands,
+            operands=filtered_operands,
             result_types=result_types,
             attributes=attributes,
             properties=properties,
+            regions=filtered_regions,
         )
         return result_op
 
@@ -441,6 +451,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             [name.data for name in op.input_attribute_names.data],
             len(op.input_operands),
             len(op.input_attributes),
+            0,
         )
 
         rewriter = self.get_rewriter(interpreter)
@@ -560,3 +571,13 @@ class PDLInterpFunctions(InterpreterFunctions):
         assert isinstance(input_op, Operation)
 
         return (input_op,)
+
+    @impl(pdl_interp.DebugPrintStatement)
+    def run_debug_statement(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.DebugPrintStatement,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        print("PDL Interpreter Debug:", op.message.data)
+        return ()

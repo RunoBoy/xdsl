@@ -19,26 +19,32 @@ func.func @impl() -> i32 {
 
 pdl_interp.func @matcher(%arg0: !pdl.operation) {
   // check if operation is an if statement
-  pdl_interp.check_operation_name of %arg0 is "scf.if" -> ^bb1, ^bb3
+  pdl_interp.check_operation_name of %arg0 is "scf.if" -> ^bb1, ^bb4
 ^bb1:
+  pdl_interp.debug_print "Matched scf.if operation"
   // check if the conditions is a constant
   %0 = pdl_interp.get_operand 0 of %arg0
   %1 = pdl_interp.get_defining_op of %0 : !pdl.value
-  pdl_interp.check_operation_name of %1 is "arith.constant" -> ^bb2, ^bb3
+  pdl_interp.check_operation_name of %1 is "arith.constant" -> ^bb2, ^bb4
 ^bb2:
+  pdl_interp.debug_print "Matched arith.constant operation"
   // check if the constant is true
   %2 = pdl_interp.get_attribute "value" of %1
-  %3 = pdl_interp.create_attribute 1 : i32
+  %3 = pdl_interp.create_attribute 1 : i1
   pdl_interp.are_equal %2, %3 : !pdl.attribute -> ^bb3, ^bb4
 ^bb3:
-  pdl_interp.record_match @rewriters::@pdl_generated_rewriter_1(%arg0 : !pdl.operation) : benefit(1) -> ^bb4
+  pdl_interp.debug_print "Constant is true"
+  %4 = pdl_interp.get_result 0 of %arg0
+  %5 = pdl_interp.get_value_type of %4 : !pdl.type
+  pdl_interp.record_match @rewriters::@pdl_generated_rewriter_1(%arg0 , %5 , %0 : !pdl.operation, !pdl.type, !pdl.value) : benefit(1) -> ^bb4
 ^bb4:
   pdl_interp.finalize
 }
 
 module @rewriters {
-    pdl_interp.func @pdl_generated_rewriter_1(%arg0: !pdl.operation) {
+    pdl_interp.func @pdl_generated_rewriter_1(%arg0: !pdl.operation, %arg1 : !pdl.type, %arg2 : !pdl.value) {
       %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
+      %1 = pdl_interp.create_operation "scf.execute_region"(%0 : !pdl.region) -> (%arg1 : !pdl.type)
 //      %1 = pdl_interp.get_result 0 of %arg0
 //      %2 = pdl_interp.get_last_operation of %arg0
 //      %3 = pdl_interp.get_operand 0 of %2

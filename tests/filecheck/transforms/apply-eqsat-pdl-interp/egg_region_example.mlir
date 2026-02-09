@@ -45,13 +45,14 @@ module @rewriters {
     pdl_interp.func @pdl_generated_rewriter_1(%arg0: !pdl.operation, %arg1 : !pdl.type, %arg2 : !pdl.value) {
       %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
       %1 = pdl_interp.create_operation "scf.execute_region"(%0 : !pdl.region) -> (%arg1 : !pdl.type)
+      %2 = pdl_interp.get_result 0 of %1
 //      %1 = pdl_interp.get_result 0 of %arg0
 //      %2 = pdl_interp.get_last_operation of %arg0
 //      %3 = pdl_interp.get_operand 0 of %2
 //      %4 = pdl_interp.get_operation of
 //      %1 = pdl_interp.get_region_results of %0 : !pdl.range<value>
 //      pdl_interp.insert_region %arg0 with (%0 : !pdl.region
-//      pdl_interp.replace %arg0 with (%3: !pdl.value)
+      pdl_interp.replace %arg0 with (%2: !pdl.value)
       pdl_interp.finalize
     }
 }

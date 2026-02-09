@@ -424,6 +424,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         filtered_operands = [x for x in operands if not isinstance(x, Region)]
 
         # remove parent
+        # set parent of first operation in region to parent of region
         for region in filtered_regions:
             region.parent = None
 

@@ -397,6 +397,7 @@ class EqsatPDLInterpFunctions(InterpreterFunctions):
             [name.data for name in op.input_attribute_names.data],
             len(op.input_operands),
             len(op.input_attributes),
+            0,
         )
 
         assert isinstance(new_op, Operation)

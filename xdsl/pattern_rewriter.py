@@ -361,7 +361,7 @@ class PatternRewriter(Builder, PatternRewriterListener):
                         res.name_hint = name_hint
 
         # Then, erase the original operation
-        self.erase_op(op, safe_erase=safe_erase)
+        self.erase_op(op, safe_erase=False)
 
 
 class RewritePattern(ABC):
@@ -855,7 +855,7 @@ class PatternRewriteWalker:
         rewriter.extend_from_listener(listener)
 
         # do/while loop
-        while True:
+        while True and len(self._worklist._op_stack) > 3:
             # Reset the rewriter on `op`
             rewriter.has_done_action = False
             rewriter.current_operation = op

@@ -320,6 +320,12 @@ class PDLInterpFunctions(InterpreterFunctions):
         input_op = args[0]
         assert isinstance(input_op, Operation)
 
+        new_op_result = args[1]
+        new_op = new_op_result.op
+
+        # reset parent for replacement
+        # new_op.parent = None
+
         # Get replacement values (if any)
         repl_values: list[SSAValue] = []
         for i in range(0, len(args) - 1):
@@ -334,7 +340,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             )
         # Replace the operation with the replacement values
         self.get_rewriter(interpreter).replace_op(
-            input_op, new_ops=[], new_results=repl_values
+            input_op, new_ops=[new_op], new_results=repl_values
         )
         return ()
 
@@ -436,6 +442,13 @@ class PDLInterpFunctions(InterpreterFunctions):
             properties=properties,
             regions=filtered_regions,
         )
+
+        # set parent of first operation in region to new operation
+        for region in filtered_regions:
+            region.parent = result_op
+            for op in region.ops:
+                op.parent = result_op
+
         return result_op
 
     @impl(pdl_interp.CreateOperationOp)

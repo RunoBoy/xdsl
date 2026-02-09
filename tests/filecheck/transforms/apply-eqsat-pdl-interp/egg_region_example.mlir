@@ -52,7 +52,8 @@ module @rewriters {
 //      %4 = pdl_interp.get_operation of
 //      %1 = pdl_interp.get_region_results of %0 : !pdl.range<value>
 //      pdl_interp.insert_region %arg0 with (%0 : !pdl.region
-      pdl_interp.replace %arg0 with (%2: !pdl.value)
+      pdl_interp.replace %arg0 with (%2, %1 : !pdl.value, !pdl.operation)
+      pdl_interp.debug_print "Rewrote scf.if to scf.execute_region"
       pdl_interp.finalize
     }
 }

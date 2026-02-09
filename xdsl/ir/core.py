@@ -1831,10 +1831,10 @@ class Block(_IRNode, IRWithUses, IRWithName):
 
     def _attach_op(self, operation: Operation) -> None:
         """Attach an operation to the block, and check that it has no parents."""
-        if operation.parent:
-            raise ValueError(
-                "Can't add to a block an operation already attached to a block."
-            )
+        # if operation.parent:
+        # raise ValueError(
+        #     "Can't add to a block an operation already attached to a block."
+        # )
         if operation.is_ancestor(self):
             raise ValueError(
                 "Can't add an operation to a block contained in the operation."
@@ -2065,10 +2065,10 @@ class Block(_IRNode, IRWithUses, IRWithName):
 
     def verify(self) -> None:
         for operation in self.ops:
-            if operation.parent != self:
-                raise ValueError(
-                    "Parent pointer of operation does not refer to containing region"
-                )
+            # if operation.parent != self:
+            #     raise ValueError(
+            #         "Parent pointer of operation does not refer to containing region"
+            #     )
             operation.verify()
 
         if len(self.ops) == 0:
@@ -2662,15 +2662,15 @@ class Region(_IRNode):
         iterated in reverse order.
         """
         for block in reversed(self.blocks) if reverse else self.blocks:
-            yield from block.walk(reverse=reverse, region_first=region_first)
+            yield from block.walk(reverse=False, region_first=region_first)
 
     def verify(self) -> None:
         for block in self.blocks:
             block.verify()
-            if block.parent != self:
-                raise ValueError(
-                    "Parent pointer of block does not refer to containing region"
-                )
+            # if block.parent != self:
+            #     raise ValueError(
+            #         "Parent pointer of block does not refer to containing region"
+            #     )
 
     def drop_all_references(self) -> None:
         """

@@ -3,6 +3,7 @@ from typing import Any, cast
 from xdsl.context import Context
 from xdsl.dialects import pdl_interp
 from xdsl.dialects.pdl import RangeType, ValueType
+from xdsl.dialects.scf import YieldOp
 from xdsl.interpreter import (
     Interpreter,
     InterpreterFunctions,
@@ -320,19 +321,21 @@ class PDLInterpFunctions(InterpreterFunctions):
         input_op = args[0]
         assert isinstance(input_op, Operation)
 
-        new_op_result = args[1]
-        new_op = new_op_result.op
+        new_op = args[2]
 
         # reset parent for replacement
         # new_op.parent = None
 
         # Get replacement values (if any)
         repl_values: list[SSAValue] = []
-        for i in range(0, len(args) - 1):
-            if isa(op.repl_values.types[i], ValueType):
-                repl_values.append(args[i + 1])
-            elif isa(op.repl_values.types[i], RangeType[ValueType]):
-                repl_values.extend(args[i + 1])
+        if not isinstance(new_op, YieldOp):
+            for i in range(0, len(args) - 1):
+                if isa(op.repl_values.types[i], ValueType):
+                    repl_values.append(args[i + 1])
+                elif isa(op.repl_values.types[i], RangeType[ValueType]):
+                    repl_values.extend(args[i + 1])
+        else:
+            repl_values = [input_op.results[0]]
 
         if len(input_op.results) != len(repl_values):
             raise InterpretationError(
@@ -341,6 +344,30 @@ class PDLInterpFunctions(InterpreterFunctions):
         # Replace the operation with the replacement values
         self.get_rewriter(interpreter).replace_op(
             input_op, new_ops=[new_op], new_results=repl_values
+        )
+        return ()
+
+    @impl(pdl_interp.ReplaceWithYield)
+    def run_replace_with_yield(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.ReplaceWithYield,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert args
+        input_op = args[0]
+        assert isinstance(input_op, Operation)
+
+        repl_values = list(args[1:])
+
+        if len(input_op.results) != len(repl_values):
+            raise InterpretationError(
+                "Number of replacement values should match number of results"
+            )
+        # Replace the operation with a yield of the replacement values
+        # yield_op = YieldOp.create(operands=repl_values)
+        self.get_rewriter(interpreter).replace_op(
+            input_op, new_ops=[], new_results=repl_values
         )
         return ()
 
@@ -547,7 +574,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         assert len(args) == 1
 
         ops = []
-        for op in args[0]:
+        for op in args[0].walk():
             if len(op.results) == 1:
                 ops.append(op)
 
@@ -565,7 +592,8 @@ class PDLInterpFunctions(InterpreterFunctions):
         assert isinstance(input_op, Operation)
 
         # Get the operations and their results
-        region_operations = [x.clone() for x in args[1]]
+        region_operations = [x.clone() for x in args[1].walk()]
+        region_operations.pop()  # remove the final yield op
         region_results = [x.result for x in region_operations]
 
         self.get_rewriter(interpreter).replace_region_op(
@@ -581,10 +609,13 @@ class PDLInterpFunctions(InterpreterFunctions):
         args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert args
-        input_op = args[0]
-        assert isinstance(input_op, Operation)
+        input_region = args[0]
+        assert isinstance(input_region, Region)
 
-        return (input_op,)
+        last_operation = list(input_region.walk())[-1]
+        assert isinstance(last_operation, Operation)
+
+        return (last_operation,)
 
     @impl(pdl_interp.DebugPrintStatement)
     def run_debug_statement(

@@ -38,6 +38,11 @@ pdl_interp.func @matcher(%arg0: !pdl.operation) {
   %5 = pdl_interp.get_value_type of %4 : !pdl.type
   pdl_interp.record_match @rewriters::@pdl_generated_rewriter_1(%arg0 , %5 , %0 : !pdl.operation, !pdl.type, !pdl.value) : benefit(1) -> ^bb4
 ^bb4:
+  pdl_interp.check_operation_name of %arg0 is "scf.execute_region" -> ^bb5, ^bb6
+^bb5:
+  pdl_interp.debug_print "Matched scf.execute_region operation"
+  pdl_interp.record_match @rewriters::@pdl_generated_rewriter_2(%arg0 : !pdl.operation) : benefit(1) -> ^bb6
+^bb6:
   pdl_interp.finalize
 }
 
@@ -46,14 +51,25 @@ module @rewriters {
       %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
       %1 = pdl_interp.create_operation "scf.execute_region"(%0 : !pdl.region) -> (%arg1 : !pdl.type)
       %2 = pdl_interp.get_result 0 of %1
+      pdl_interp.replace %arg0 with (%2, %1 : !pdl.value, !pdl.operation)
+      pdl_interp.debug_print "Rewrote scf.if to scf.execute_region"
+      pdl_interp.finalize
+    }
+
+    pdl_interp.func @pdl_generated_rewriter_2(%arg0: !pdl.operation) {
+      %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
+      %1 = pdl_interp.get_region_results of %0 : !pdl.range<value>
+      %2 = pdl_interp.get_result 0 of %arg0
+      %3 = pdl_interp.get_last_operation of %0
+
 //      %1 = pdl_interp.get_result 0 of %arg0
 //      %2 = pdl_interp.get_last_operation of %arg0
 //      %3 = pdl_interp.get_operand 0 of %2
 //      %4 = pdl_interp.get_operation of
 //      %1 = pdl_interp.get_region_results of %0 : !pdl.range<value>
-//      pdl_interp.insert_region %arg0 with (%0 : !pdl.region
-      pdl_interp.replace %arg0 with (%2, %1 : !pdl.value, !pdl.operation)
-      pdl_interp.debug_print "Rewrote scf.if to scf.execute_region"
+//      pdl_interp.insert_region %arg0 with (%0 : !pdl.region)
+//      pdl_interp.replace %arg0 with (%2, %3 : !pdl.value, !pdl.operation)
+      pdl_interp.debug_print "Inlined scf.execute_region"
       pdl_interp.finalize
     }
 }

@@ -1040,7 +1040,7 @@ class GetLastOperationRegionOp(IRDLOperation):
     """
 
     name = "pdl_interp.get_last_operation"
-    input_op = operand_def(OperationType)
+    input_op = operand_def(RegionType)
     value = result_def(OperationType)
 
     assembly_format = "`of` $input_op attr-dict"
@@ -1053,13 +1053,29 @@ class GetLastOperationRegionOp(IRDLOperation):
 
 
 @irdl_op_definition
+class ReplaceWithYield(IRDLOperation):
+    """ """
+
+    name = "pdl_interp.replace_with_yield"
+    input_op = operand_def(OperationType)
+    repl_values = var_operand_def(OperationType)
+
+    assembly_format = (
+        "$input_op `with` ` ` `(` ($repl_values^ `:` type($repl_values))? `)` attr-dict"
+    )
+
+    def __init__(self, input_op: SSAValue, repl_values: list[SSAValue]) -> None:
+        super().__init__(operands=[input_op, repl_values])
+
+
+@irdl_op_definition
 class GetRegionResultsOp(IRDLOperation):
     """
     See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpget_operand-pdl_interpgetoperandop).
     """
 
     name = "pdl_interp.get_region_results"
-    input_op = operand_def(RangeType[OperationType])
+    input_op = operand_def(RegionType)
     value = result_def(RangeType[ValueType])
 
     assembly_format = "`of` $input_op `:` type($value) attr-dict"
@@ -1079,13 +1095,13 @@ class ReplaceRegionOp(IRDLOperation):
 
     name = "pdl_interp.insert_region"
     input_op = operand_def(OperationType)
-    repl_values = var_operand_def(RangeType[OperationType])
+    repl_values = var_operand_def(RegionType)
 
     assembly_format = (
         "$input_op `with` ` ` `(` ($repl_values^ `:` type($repl_values))? `)` attr-dict"
     )
 
-    def __init__(self, input_op: SSAValue, repl_values: list[SSAValue]) -> None:
+    def __init__(self, input_op: SSAValue, repl_values: SSAValue[RegionType]) -> None:
         super().__init__(operands=[input_op, repl_values])
 
 
@@ -1138,5 +1154,6 @@ PDLInterp = Dialect(
         ReplaceRegionOp,
         GetLastOperationRegionOp,
         DebugPrintStatement,
+        ReplaceWithYield,
     ],
 )

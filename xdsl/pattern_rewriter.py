@@ -663,7 +663,7 @@ class Worklist:
             self._op_stack.pop()
         return not bool(self._op_stack)
 
-    def push(self, op: Operation):
+    def push(self, op: Operation) -> None:
         """
         Push an operation to the end of the worklist, if it is not already in it.
         """
@@ -836,6 +836,7 @@ class PatternRewriteWalker:
     def _populate_worklist(self, op: Operation | Region | Block) -> None:
         """Populate the worklist with all nested operations."""
         # We walk in reverse order since we use a stack for our worklist.
+        print()
         for sub_op in op.walk(
             reverse=not self.walk_reverse, region_first=not self.walk_regions_first
         ):
@@ -858,7 +859,7 @@ class PatternRewriteWalker:
         rewriter.extend_from_listener(listener)
 
         # do/while loop
-        while True and len(self._worklist._op_stack) > 3:
+        while True:
             # Reset the rewriter on `op`
             rewriter.has_done_action = False
             rewriter.current_operation = op

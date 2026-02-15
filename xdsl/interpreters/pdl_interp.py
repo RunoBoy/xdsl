@@ -343,7 +343,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             )
         # Replace the operation with the replacement values
         self.get_rewriter(interpreter).replace_op(
-            input_op, new_ops=[new_op], new_results=repl_values
+            input_op, new_ops=[], new_results=repl_values
         )
         return ()
 
@@ -469,12 +469,6 @@ class PDLInterpFunctions(InterpreterFunctions):
             properties=properties,
             regions=filtered_regions,
         )
-
-        # set parent of first operation in region to new operation
-        for region in filtered_regions:
-            region.parent = result_op
-            for op in region.ops:
-                op.parent = result_op
 
         return result_op
 
@@ -625,4 +619,16 @@ class PDLInterpFunctions(InterpreterFunctions):
         args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         print("PDL Interpreter Debug:", op.message.data)
+        return ()
+
+    @impl(pdl_interp.DeleteOp)
+    def run_delete(
+        self, interpreter: Interpreter, op: pdl_interp.DeleteOp, args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        assert len(args) == 1
+        input_op = args[0]
+
+        assert isinstance(input_op, Operation)
+
+        self.get_rewriter(interpreter).erase_op(input_op, safe_erase=False)
         return ()

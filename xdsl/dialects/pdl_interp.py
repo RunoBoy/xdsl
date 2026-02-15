@@ -1106,6 +1106,19 @@ class ReplaceRegionOp(IRDLOperation):
 
 
 @irdl_op_definition
+class DeleteOp(IRDLOperation):
+    name = "pdl_interp.delete"
+    input_op = operand_def(OperationType)
+
+    assembly_format = "$input_op attr-dict"
+
+    def __init__(self, input_op: SSAValue) -> None:
+        super().__init__(
+            operands=[input_op],
+        )
+
+
+@irdl_op_definition
 class DebugPrintStatement(IRDLOperation):
     """
     An operation that prints a debug message during interpretation.
@@ -1155,5 +1168,6 @@ PDLInterp = Dialect(
         GetLastOperationRegionOp,
         DebugPrintStatement,
         ReplaceWithYield,
+        DeleteOp,
     ],
 )

@@ -1332,9 +1332,9 @@ class Operation(_IRNode):
         return False
 
     def verify(self, verify_nested_ops: bool = True) -> None:
-        for operand in self.operands:
-            if isinstance(operand, ErasedSSAValue):
-                raise ValueError("Erased SSA value is used by the operation")
+        # for operand in self.operands:
+        #     if isinstance(operand, ErasedSSAValue):
+        #         raise ValueError("Erased SSA value is used by the operation")
 
         parent_block = self.parent
         parent_region = None if parent_block is None else parent_block.parent

@@ -58,10 +58,9 @@ module @rewriters {
 
     pdl_interp.func @pdl_generated_rewriter_2(%arg0: !pdl.operation) {
       %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
-
       pdl_interp.inline_region %arg0 with (%0 : !pdl.region)
-//      pdl_interp.replace %arg0 with (%2, %3 : !pdl.value, !pdl.operation)
-      delete %arg0
+      %1 = pdl_interp.value_of_yield %0
+      pdl_interp.replace %arg0 with (%1 : !pdl.value)
       pdl_interp.debug_print "Inlined scf.execute_region"
       pdl_interp.finalize
     }

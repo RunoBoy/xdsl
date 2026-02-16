@@ -96,6 +96,28 @@ class PDLInterpFunctions(InterpreterFunctions):
         else:
             return (args[0].operands[op.index.value.data],)
 
+    @impl(pdl_interp.GetFunctionOfCall)
+    def run_get_function_of_call(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.GetFunctionOfCall,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert len(args) == 1
+        assert isinstance(args[0], Operation)
+
+        operation = args[0]
+        assert operation.properties
+
+        if "callee" not in operation.properties:
+            raise InterpretationError("Expected a 'callee' property on the operation")
+
+        # callee = operation.properties["callee"]
+        # function_name = callee.root_reference.data
+        # ctx = PDLInterpFunctions.get_ctx(interpreter)
+
+        return (None,)
+
     @impl(pdl_interp.GetResultOp)
     def run_get_result(
         self,
@@ -165,6 +187,22 @@ class PDLInterpFunctions(InterpreterFunctions):
         assert isinstance(args[0], SSAValue)
         value = cast(SSAValue, args[0])
         return (value.type,)
+
+    @impl(pdl_interp.ValueOfYieldOp)
+    def run_get_value_of_yield(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.ValueOfYieldOp,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert len(args) == 1
+        assert isinstance(args[0], Region)
+
+        # Get the final yield operation in the region
+        operations = [x for x in args[0].walk()]
+        yield_operation = operations.pop()
+
+        return (yield_operation.operands[0],)
 
     @impl(pdl_interp.GetDefiningOpOp)
     def run_get_defining_op(
@@ -605,6 +643,37 @@ class PDLInterpFunctions(InterpreterFunctions):
             self.get_rewriter(interpreter).insert_op(x, InsertPoint.before(input_op))
 
         return ()
+
+    @impl(pdl_interp.InlineYieldOp)
+    def run_inline_yield(
+        self,
+        interpreter: Interpreter,
+        op: pdl_interp.InlineYieldOp,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert args
+        input_op = args[0]
+        assert isinstance(input_op, Operation)
+
+        # Get the operations and their results
+        region_operations = [x.clone() for x in args[1].walk()]
+        yield_op = region_operations.pop()  # remove the final yield op
+
+        result_to_op = {}
+
+        for x in region_operations:
+            result_to_op.update({x.results[0]: x})
+
+        correct_result = input_op.results[0]
+
+        operation = yield_op.operands[0]
+        # operation.result = correct_result
+        # self.get_rewriter(interpreter).erase_op(operation, False)
+        # # self.get_rewriter(interpreter).insert_op(operation, InsertPoint.before(input_op))
+
+        self.get_rewriter(interpreter).replace_all_uses_with(correct_result, operation)
+
+        return (input_op,)
 
     @impl(pdl_interp.GetLastOperationRegionOp)
     def run_region_get_last_operation(

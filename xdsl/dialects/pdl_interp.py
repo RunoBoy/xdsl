@@ -107,6 +107,22 @@ class GetOperandOp(IRDLOperation):
 
 
 @irdl_op_definition
+class GetFunctionOfCall(IRDLOperation):
+    """
+    See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpget_operand-pdl_interpgetoperandop).
+    """
+
+    name = "pdl_interp.get_function_of_call"
+    input_op = operand_def(OperationType)
+    value = result_def(OperationType)
+
+    assembly_format = "$input_op attr-dict"
+
+    def __init__(self, input_op: SSAValue) -> None:
+        super().__init__(operands=[input_op], result_types=[OperationType()])
+
+
+@irdl_op_definition
 class FinalizeOp(IRDLOperation):
     """
     See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpfinalize-pdl_interpfinalizeop).
@@ -1106,6 +1122,47 @@ class InlineRegionOp(IRDLOperation):
 
 
 @irdl_op_definition
+class InlineYieldOp(IRDLOperation):
+    """
+    See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpreplace-pdl_interpreplaceop).
+    """
+
+    name = "pdl_interp.inline_yield"
+    input_op = operand_def(OperationType)
+    repl_values = var_operand_def(RegionType)
+    value = result_def(OperationType)
+
+    assembly_format = (
+        "$input_op `with` ` ` `(` ($repl_values^ `:` type($repl_values))? `)` attr-dict"
+    )
+
+    def __init__(self, input_op: SSAValue) -> None:
+        super().__init__(
+            operands=[input_op],
+            result_types=[OperationType],
+        )
+
+
+@irdl_op_definition
+class ValueOfYieldOp(IRDLOperation):
+    """
+    See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpreplace-pdl_interpreplaceop).
+    """
+
+    name = "pdl_interp.value_of_yield"
+    input_op = operand_def(RegionType)
+    value = result_def(ValueType)
+
+    assembly_format = "$input_op attr-dict"
+
+    def __init__(self, input_op: SSAValue) -> None:
+        super().__init__(
+            operands=[input_op],
+            result_types=[ValueType],
+        )
+
+
+@irdl_op_definition
 class DeleteOp(IRDLOperation):
     name = "pdl_interp.delete"
     input_op = operand_def(OperationType)
@@ -1169,5 +1226,8 @@ PDLInterp = Dialect(
         DebugPrintStatement,
         ReplaceWithYield,
         DeleteOp,
+        InlineYieldOp,
+        ValueOfYieldOp,
+        GetFunctionOfCall,
     ],
 )

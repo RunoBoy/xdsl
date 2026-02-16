@@ -1357,7 +1357,6 @@ class Operation(_IRNode):
                     )
 
         if parent_block is not None and parent_region is not None:
-            print(type(parent_block))
             if parent_block.last_op == self:
                 if len(parent_region.blocks) == 1:
                     if (

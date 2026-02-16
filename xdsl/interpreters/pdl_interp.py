@@ -3,6 +3,7 @@ from typing import Any, cast
 from xdsl.context import Context
 from xdsl.dialects import pdl_interp
 from xdsl.dialects.pdl import RangeType, ValueType
+from xdsl.dialects.scf import YieldOp
 from xdsl.interpreter import (
     Interpreter,
     InterpreterFunctions,
@@ -452,11 +453,22 @@ class PDLInterpFunctions(InterpreterFunctions):
         for region in filtered_regions:
             region.parent = None
 
+        old_to_new_map = {}
+
         new_operations = []
         for op in filtered_regions[0].walk():
             new_op = op.clone()
             new_op.parent = None
             new_operations.append(new_op)
+
+            old_to_new_map.update({op: new_op})
+
+            if isinstance(op, YieldOp):
+                yield_return_result = op.operands[0]
+                original_operation = yield_return_result.op
+                cloned_operation = old_to_new_map[original_operation]
+
+                new_op.operands = [cloned_operation.results[0]]
 
         block = Block(new_operations)
         region = Region(block)

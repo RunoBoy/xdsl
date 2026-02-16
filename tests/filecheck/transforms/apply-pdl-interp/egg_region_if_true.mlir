@@ -50,10 +50,10 @@ module @rewriters {
     pdl_interp.func @pdl_generated_rewriter_1(%arg0: !pdl.operation, %arg1 : !pdl.type) {
       %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
       %1 = pdl_interp.create_operation "scf.execute_region"(%0 : !pdl.region) -> (%arg1 : !pdl.type)
-//      %2 = pdl_interp.get_result 0 of %1
-//      pdl_interp.replace %arg0 with (%2, %1 : !pdl.value, !pdl.operation)
+      %2 = pdl_interp.get_result 0 of %1
+      pdl_interp.replace %arg0 with (%2 : !pdl.value)
       pdl_interp.debug_print "Rewrote scf.if to scf.execute_region"
-      pdl_interp.delete %arg0
+//      pdl_interp.delete %arg0
       pdl_interp.finalize
     }
 

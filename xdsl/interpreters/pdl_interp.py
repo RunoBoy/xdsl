@@ -3,7 +3,6 @@ from typing import Any, cast
 from xdsl.context import Context
 from xdsl.dialects import pdl_interp
 from xdsl.dialects.pdl import RangeType, ValueType
-from xdsl.dialects.scf import YieldOp
 from xdsl.interpreter import (
     Interpreter,
     InterpreterFunctions,
@@ -321,21 +320,13 @@ class PDLInterpFunctions(InterpreterFunctions):
         input_op = args[0]
         assert isinstance(input_op, Operation)
 
-        new_op = args[2]
-
-        # reset parent for replacement
-        # new_op.parent = None
-
         # Get replacement values (if any)
         repl_values: list[SSAValue] = []
-        if not isinstance(new_op, YieldOp):
-            for i in range(0, len(args) - 1):
-                if isa(op.repl_values.types[i], ValueType):
-                    repl_values.append(args[i + 1])
-                elif isa(op.repl_values.types[i], RangeType[ValueType]):
-                    repl_values.extend(args[i + 1])
-        else:
-            repl_values = [input_op.results[0]]
+        for i in range(0, len(args) - 1):
+            if isa(op.repl_values.types[i], ValueType):
+                repl_values.append(args[i + 1])
+            elif isa(op.repl_values.types[i], RangeType[ValueType]):
+                repl_values.extend(args[i + 1])
 
         if len(input_op.results) != len(repl_values):
             raise InterpretationError(

@@ -53,19 +53,16 @@ module @rewriters {
       %2 = pdl_interp.get_result 0 of %1
       pdl_interp.replace %arg0 with (%2 : !pdl.value)
       pdl_interp.debug_print "Rewrote scf.if to scf.execute_region"
-//      pdl_interp.delete %arg0
       pdl_interp.finalize
     }
 
     pdl_interp.func @pdl_generated_rewriter_2(%arg0: !pdl.operation) {
-//      %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
-//      %1 = pdl_interp.get_region_results of %0 : !pdl.range<value>
-//      %2 = pdl_interp.get_result 0 of %arg0
-//      %3 = pdl_interp.get_last_operation of %0
-//
-//      pdl_interp.insert_region %arg0 with (%0 : !pdl.region)
+      %0 = pdl_interp.get_region 0 of %arg0 : !pdl.region
+
+      pdl_interp.inline_region %arg0 with (%0 : !pdl.region)
 //      pdl_interp.replace %arg0 with (%2, %3 : !pdl.value, !pdl.operation)
-//      pdl_interp.debug_print "Inlined scf.execute_region"
+      delete %arg0
+      pdl_interp.debug_print "Inlined scf.execute_region"
       pdl_interp.finalize
     }
 }

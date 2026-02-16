@@ -1088,12 +1088,12 @@ class GetRegionResultsOp(IRDLOperation):
 
 
 @irdl_op_definition
-class ReplaceRegionOp(IRDLOperation):
+class InlineRegionOp(IRDLOperation):
     """
     See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpreplace-pdl_interpreplaceop).
     """
 
-    name = "pdl_interp.insert_region"
+    name = "pdl_interp.inline_region"
     input_op = operand_def(OperationType)
     repl_values = var_operand_def(RegionType)
 
@@ -1164,7 +1164,7 @@ PDLInterp = Dialect(
         GetDefiningOpOp,
         GetRegionOp,
         GetRegionResultsOp,
-        ReplaceRegionOp,
+        InlineRegionOp,
         GetLastOperationRegionOp,
         DebugPrintStatement,
         ReplaceWithYield,

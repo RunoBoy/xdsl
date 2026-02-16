@@ -586,11 +586,11 @@ class PDLInterpFunctions(InterpreterFunctions):
 
         return (ops,)
 
-    @impl(pdl_interp.ReplaceRegionOp)
-    def run_region_replace(
+    @impl(pdl_interp.InlineRegionOp)
+    def run_inline_region(
         self,
         interpreter: Interpreter,
-        op: pdl_interp.ReplaceRegionOp,
+        op: pdl_interp.InlineRegionOp,
         args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert args
@@ -600,11 +600,10 @@ class PDLInterpFunctions(InterpreterFunctions):
         # Get the operations and their results
         region_operations = [x.clone() for x in args[1].walk()]
         region_operations.pop()  # remove the final yield op
-        region_results = [x.result for x in region_operations]
 
-        self.get_rewriter(interpreter).replace_region_op(
-            input_op, new_ops=region_operations, new_results=region_results
-        )
+        for x in region_operations:
+            self.get_rewriter(interpreter).insert_op(x, InsertPoint.before(input_op))
+
         return ()
 
     @impl(pdl_interp.GetLastOperationRegionOp)

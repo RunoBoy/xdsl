@@ -1332,9 +1332,9 @@ class Operation(_IRNode):
         return False
 
     def verify(self, verify_nested_ops: bool = True) -> None:
-        # for operand in self.operands:
-        #     if isinstance(operand, ErasedSSAValue):
-        #         raise ValueError("Erased SSA value is used by the operation")
+        for operand in self.operands:
+            if isinstance(operand, ErasedSSAValue):
+                raise ValueError("Erased SSA value is used by the operation")
 
         parent_block = self.parent
         parent_region = None if parent_block is None else parent_block.parent
@@ -1357,6 +1357,7 @@ class Operation(_IRNode):
                     )
 
         if parent_block is not None and parent_region is not None:
+            print(type(parent_block))
             if parent_block.last_op == self:
                 if len(parent_region.blocks) == 1:
                     if (
@@ -1831,10 +1832,10 @@ class Block(_IRNode, IRWithUses, IRWithName):
 
     def _attach_op(self, operation: Operation) -> None:
         """Attach an operation to the block, and check that it has no parents."""
-        # if operation.parent:
-        # raise ValueError(
-        #     "Can't add to a block an operation already attached to a block."
-        # )
+        if operation.parent:
+            raise ValueError(
+                "Can't add to a block an operation already attached to a block."
+            )
         if operation.is_ancestor(self):
             raise ValueError(
                 "Can't add an operation to a block contained in the operation."
@@ -2065,10 +2066,10 @@ class Block(_IRNode, IRWithUses, IRWithName):
 
     def verify(self) -> None:
         for operation in self.ops:
-            # if operation.parent != self:
-            #     raise ValueError(
-            #         "Parent pointer of operation does not refer to containing region"
-            #     )
+            if operation.parent != self:
+                raise ValueError(
+                    "Parent pointer of operation does not refer to containing region"
+                )
             operation.verify()
 
         if len(self.ops) == 0:
@@ -2667,10 +2668,10 @@ class Region(_IRNode):
     def verify(self) -> None:
         for block in self.blocks:
             block.verify()
-            # if block.parent != self:
-            #     raise ValueError(
-            #         "Parent pointer of block does not refer to containing region"
-            #     )
+            if block.parent != self:
+                raise ValueError(
+                    "Parent pointer of block does not refer to containing region"
+                )
 
     def drop_all_references(self) -> None:
         """

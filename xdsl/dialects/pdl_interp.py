@@ -624,7 +624,7 @@ class CreateOperationOp(IRDLOperation):
     input_attribute_names = prop_def(ArrayAttr, prop_name="inputAttributeNames")
     inferred_result_types = opt_prop_def(UnitAttr, prop_name="inferredResultTypes")
 
-    input_operands = var_operand_def(ValueType | RangeType[ValueType])
+    input_operands = var_operand_def(ValueType | RangeType[ValueType] | RegionType)
     input_attributes = var_operand_def(AttributeType | RangeType[AttributeType])
     input_result_types = var_operand_def(TypeType | RangeType[TypeType])
 

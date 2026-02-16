@@ -667,9 +667,8 @@ class Worklist:
         """
         Push an operation to the end of the worklist, if it is not already in it.
         """
-        if op not in self._map:
-            self._map[op] = len(self._op_stack)
-            self._op_stack.append(op)
+        self._map[op] = len(self._op_stack)
+        self._op_stack.append(op)
 
     def pop(self) -> Operation | None:
         """Pop the operation at the end of the worklist."""
@@ -680,7 +679,7 @@ class Worklist:
         while self._op_stack:
             op = self._op_stack.pop()
             if op is not None:
-                del self._map[op]
+                # del self._map[op]
                 return op
         return None
 
@@ -841,6 +840,7 @@ class PatternRewriteWalker:
             reverse=not self.walk_reverse, region_first=not self.walk_regions_first
         ):
             self._worklist.push(sub_op)
+        print()
 
     def _process_worklist(self, listener: PatternRewriterListener) -> bool:
         """

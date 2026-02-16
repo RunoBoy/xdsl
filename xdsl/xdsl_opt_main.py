@@ -395,8 +395,8 @@ class xDSLOptMain(CommandLineTool):
 
     def apply_passes(self, prog: ModuleOp) -> bool:
         """Apply passes in order."""
-        # if not self.args.disable_verify:
-        #     prog.verify()
+        if not self.args.disable_verify:
+            prog.verify()
         self.pipeline.apply(self.ctx, prog)
         if not self.args.disable_verify:
             prog.verify()

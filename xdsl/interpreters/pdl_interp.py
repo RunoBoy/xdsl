@@ -15,7 +15,7 @@ from xdsl.interpreter import (
     impl_terminator,
     register_impls,
 )
-from xdsl.ir import Attribute, Operation, OpResult, Region, SSAValue
+from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
 from xdsl.irdl import IRDLOperation
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
@@ -461,13 +461,22 @@ class PDLInterpFunctions(InterpreterFunctions):
         for region in filtered_regions:
             region.parent = None
 
+        new_operations = []
+        for op in filtered_regions[0].walk():
+            new_op = op.clone()
+            new_op.parent = None
+            new_operations.append(new_op)
+
+        block = Block(new_operations)
+        region = Region(block)
+
         # Create the new operation
         result_op = op_type.create(
             operands=filtered_operands,
             result_types=result_types,
             attributes=attributes,
             properties=properties,
-            regions=filtered_regions,
+            regions=[region],
         )
 
         return result_op

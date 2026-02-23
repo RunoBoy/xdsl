@@ -378,6 +378,16 @@ def get_all_dialects() -> dict[str, Callable[[], Dialect]]:
 
         return Transform
 
+    def get_pdl_region():
+        from xdsl.dialects.pdl_region import PDL_Region
+
+        return PDL_Region
+
+    def get_pdl_interp_region():
+        from xdsl.dialects.pdl_interp_region import PDLInterpRegion
+
+        return PDLInterpRegion
+
     return {
         "accfg": get_accfg,
         "affine": get_affine,
@@ -453,6 +463,8 @@ def get_all_dialects() -> dict[str, Callable[[], Dialect]]:
         "x86_func": get_x86_func,
         "x86_scf": get_x86_scf,
         "transform": get_transform,
+        "pdl_region": get_pdl_region,
+        "pdl_interp_region": get_pdl_interp_region,
     }
 
 

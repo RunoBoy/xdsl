@@ -745,6 +745,19 @@ class PDLInterpFunctions(InterpreterFunctions):
         new_block = Block()
         new_region = Region([new_block])
 
+        return (new_region,)
+
+    @impl(pdl_interp_region.CloneRegionOp)
+    def run_clone_region(
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp_region.CreateRegionOp,
+            args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert args
+        old_region = args[0]
+        assert isinstance(old_region, Region)
+        new_region = old_region.clone()
 
         return (new_region,)
 

@@ -115,9 +115,29 @@ class CreateRegionOp(IRDLOperation):
 
     def __init__(
         self,
-        opt_operands: Sequence[SSAValue] | None = None,
     ):
         super().__init__(
+            result_types=[RegionType()]
+        )
+
+@irdl_op_definition
+class CloneRegionOp(IRDLOperation):
+    name = "pdl_interp_region.clone_region"
+    region = operand_def(RegionType)
+
+    result_op = result_def(RegionType)
+
+    assembly_format = (
+        "`(` $region `:` type($region) `)` "
+        "attr-dict"
+    )
+
+    def __init__(
+        self,
+        region: SSAValue,
+    ):
+        super().__init__(
+            operands=[region],
             result_types=[RegionType()]
         )
 
@@ -348,5 +368,6 @@ PDLInterpRegion = Dialect(
         CreateRegionOp,
         InsertOpIntoRegionOp,
         DeleteOpFromRegionOp,
+        CloneRegionOp,
     ],
 )

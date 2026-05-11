@@ -1,22 +1,26 @@
-func.func @log_return(%price: f32) -> f32 {
-  %log = math.log %price : f32
-  return %log : f32
+func.func @log_return(%arg0: f32) -> f32 {
+    %0 = equivalence.graph : () -> (f32) {
+      %1 = math.log %arg0 : f32
+      equivalence.yield %1 : f32
+    }
+    return %0 : f32
 }
-
-func.func @compound(%sum_logs: f32) -> f32 {
-  %exp = math.exp %sum_logs : f32
-  return %exp : f32
+func.func @compound(%arg0: f32) -> f32 {
+    %0 = equivalence.graph : () -> (f32) {
+      %1 = math.exp %arg0 : f32
+      equivalence.yield %1 : f32
+    }
+    return %0 : f32
 }
-
-
-func.func @quant_model(%x: f32, %y: f32) -> f32 {
-  %log_x = func.call @log_return(%x) : (f32) -> f32
-  %log_y = func.call @log_return(%y) : (f32) -> f32
-
-  %sum = arith.addf %log_x, %log_y : f32
-
-  %result = func.call @compound(%sum) : (f32) -> f32
-  return %result : f32
+func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
+    %0 = equivalence.graph : () -> (f32) {
+      %1 = func.call @log_return(%arg0) : (f32) -> f32
+      %2 = func.call @log_return(%arg1) : (f32) -> f32
+      %3 = arith.addf %1, %2 : f32
+      %4 = func.call @compound(%3) : (f32) -> f32
+      equivalence.yield %4 : f32
+    }
+    return %0 : f32
 }
 
 
@@ -89,7 +93,36 @@ func.func @quant_model(%x: f32, %y: f32) -> f32 {
     ^bb41:
       %100 = pdl_interp.apply_constraint "get_function_call"(%arg0 : !pdl.operation) : !pdl.operation -> ^bb42, ^bb1
     ^bb42:
+      // get region of function (function body)
       %101 = pdl_interp_region.get_region 0 of %100 : !pdl_region.region
+      // check if an equivalence graph is present
+      %1011 = pdl_interp_region.get_operation() called "equivalence.graph" 0 of %101
+      // check if it's found
+      pdl_interp.is_not_null %1011 : !pdl.operation -> ^bb421, ^bb430
+    ^bb421:
+      // extract the equvialence graph body
+      %1012 = pdl_interp_region.get_region 0 of %1011 : !pdl_region.region
+      %1022 = pdl_interp_region.clone_region(%1012 : !pdl_region.region)
+      // extract the equivalence yield
+      %1013 = pdl_interp_region.get_operation() called "equivalence.yield" 0 of %1022
+      pdl_interp.is_not_null %1013 : !pdl.operation -> ^bb422, ^bb1
+    ^bb422:
+      // create a new operation scf.yield to replace the equivalence.yield
+      %1014 = pdl_interp.get_operand 0 of %1013
+      %1015 = pdl_interp.create_operation "scf.yield"(%1014 : !pdl.value)
+      %1016 = pdl_interp_region.insert_op_into_region(%1015 : !pdl.operation) of %1022
+      %1017 = pdl_interp_region.delete_op_from_region(%1013 : !pdl.operation) of %1016
+      %1021 = pdl_interp.apply_constraint "get_arguments_of_function"(%100 : !pdl.operation) : !pdl.range<value> -> ^bb423, ^bb1
+    ^bb423:
+      pdl_interp.check_result_count of %arg0 is 1 -> ^bb425, ^bb1
+    ^bb425:
+      %1018 = pdl_interp.get_result 0 of %arg0
+      %1019 = pdl_interp.get_value_type of %1018 : !pdl.type
+      %1020 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%1017 : !pdl_region.region) -> (%1019 : !pdl.type)
+      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1020, %100, %arg0 : !pdl.operation, !pdl.operation, !pdl.operation) -> ^bb424, ^bb1
+    ^bb424:
+      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %1020 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
+    ^bb430:
       %102 = pdl_interp.apply_constraint "replace_return_with_yield"(%101 : !pdl_region.region) : !pdl_region.region -> ^bb43, ^bb1
     ^bb43:
       %103 = pdl_interp.apply_constraint "get_arguments_of_function"(%100 : !pdl.operation) : !pdl.range<value> -> ^bb44, ^bb1

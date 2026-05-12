@@ -65,6 +65,30 @@ class OperationInfo:
         )
 
 
+@dataclass
+class BlockInfo:
+    """
+    Boilerplate helper to use in KnownBlocks cache.
+
+    This is to compare blocks based on the operations they contain.
+    """
+
+    block: Block
+
+    def __hash__(self):
+        return sum(hash(OperationInfo(op)) for op in self.block.ops)
+
+    def __eq__(self, other: object):
+        return (
+            isinstance(other, BlockInfo)
+            and hash(self) == hash(other)
+            and all(
+                OperationInfo(s) == OperationInfo(o)
+                for s, o in zip(self.block.ops, other.block.ops, strict=True)
+            )
+        )
+
+
 _D = TypeVar("_D")
 
 
@@ -97,6 +121,37 @@ class KnownOps:
 
     def pop(self, k: Operation):
         return self._known_ops.pop(OperationInfo(k))
+
+
+class KnownBlocks:
+    """
+    Cache dictionary for known blocks used in CSE.
+    It quacks like a dict[Block, Block], but uses BlockInfo of a Block
+    as the actual key.
+    """
+
+    _known_blocks: dict[BlockInfo, Block]
+
+    def __init__(self, known_blocks: "KnownBlocks | None" = None):
+        if known_blocks is None:
+            self._known_blocks = {}
+        else:
+            self._known_blocks = dict(known_blocks._known_blocks)
+
+    def __getitem__(self, k: Block):
+        return self._known_blocks[BlockInfo(k)]
+
+    def __setitem__(self, k: Block, v: Block):
+        self._known_blocks[BlockInfo(k)] = v
+
+    def __contains__(self, k: Block):
+        return BlockInfo(k) in self._known_blocks
+
+    def get(self, k: Block, default: _D = None) -> Block | _D:
+        return self._known_blocks.get(BlockInfo(k), default)
+
+    def pop(self, k: Block):
+        return self._known_blocks.pop(BlockInfo(k))
 
 
 def has_other_side_effecting_op_in_between(

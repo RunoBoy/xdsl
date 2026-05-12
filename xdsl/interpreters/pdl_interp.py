@@ -866,13 +866,11 @@ class PDLInterpFunctions(InterpreterFunctions):
         region = args[1]
         assert isinstance(region, Region)
 
-        new_region = region.clone()
+        new_region = region
         if len(new_region.blocks) > 1:
             yield_op = new_region.last_block.last_op
         else:
             yield_op = new_region.ops.last
-        # block = new_region.block
-        # yield_op = block.last_op
         assert yield_op is not None
 
         # Get the result value from the yield before inlining

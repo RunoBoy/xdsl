@@ -5,6 +5,9 @@ from xdsl.dialects.pdl import (
     RangeType,
     ValueType,
 )
+from xdsl.dialects.pdl_region import (
+    RegionType,
+)
 from xdsl.ir import (
     Dialect,
     SSAValue,
@@ -139,6 +142,26 @@ class DedupOp(IRDLOperation):
             result_types=[OperationType()],
         )
 
+@irdl_op_definition
+class InlineRegionOp(IRDLOperation):
+    """
+    Check if the region already exists in the hashcons.
+
+    If so, remove the new one.
+    """
+
+    name = "ematch.inline_region"
+    input_region = operand_def(RegionType)
+    input_op = operand_def(OperationType)
+    result_value = result_def(ValueType)
+
+    assembly_format = "$input_region ` at ` $input_op attr-dict"
+
+    def __init__(self, input_region: SSAValue, input_op: SSAValue) -> None:
+        super().__init__(
+            operands=[input_region, input_op], result_types=[ValueType],
+        )
+
 
 Ematch = Dialect(
     "ematch",
@@ -149,5 +172,6 @@ Ematch = Dialect(
         GetClassResultsOp,
         UnionOp,
         DedupOp,
+        InlineRegionOp,
     ],
 )

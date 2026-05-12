@@ -119,9 +119,10 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
       %1018 = pdl_interp.get_result 0 of %arg0
       %1019 = pdl_interp.get_value_type of %1018 : !pdl.type
       %1020 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%1017 : !pdl_region.region) -> (%1019 : !pdl.type)
-      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1020, %100, %arg0 : !pdl.operation, !pdl.operation, !pdl.operation) -> ^bb424, ^bb1
+      %1023 = ematch.dedup %1020
+      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1023, %100, %arg0 : !pdl.operation, !pdl.operation, !pdl.operation) -> ^bb424, ^bb1
     ^bb424:
-      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %1020 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
+      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %1023 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
     ^bb430:
       %102 = pdl_interp.apply_constraint "replace_return_with_yield"(%101 : !pdl_region.region) : !pdl_region.region -> ^bb43, ^bb1
     ^bb43:
@@ -130,9 +131,10 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
       %104 = pdl_interp.get_result 0 of %arg0
       %105 = pdl_interp.get_value_type of %104 : !pdl.type
       %106 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%102 : !pdl_region.region) -> (%105 : !pdl.type)
-      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%106, %100, %arg0 : !pdl.operation, !pdl.operation, !pdl.operation) -> ^bb45, ^bb1
+      %107 = ematch.dedup %106
+      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%107, %100, %arg0 : !pdl.operation, !pdl.operation, !pdl.operation) -> ^bb45, ^bb1
     ^bb45:
-      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %106 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
+      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %107 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
     ^bb50:
       pdl_interp.check_operation_name of %arg0 is "math.exp" -> ^bb51, ^bb1
     ^bb51:
@@ -179,7 +181,8 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
     pdl_interp.func @if_true_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %2 = pdl_interp.get_result 0 of %1
+      %11 = ematch.dedup %1
+      %2 = pdl_interp.get_result 0 of %11
       %3 = ematch.get_class_result %2
       %4 = pdl_interp.create_range %3 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
@@ -189,7 +192,8 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
      pdl_interp.func @if_false_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
       %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
       %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %2 = pdl_interp.get_result 0 of %1
+      %11 = ematch.dedup %1
+      %2 = pdl_interp.get_result 0 of %11
       %3 = ematch.get_class_result %2
       %4 = pdl_interp.create_range %3 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
@@ -198,7 +202,7 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
 
     pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
+      %1 = ematch.inline_region %0 at %arg0
       pdl_interp.replace %arg0 with (%1 : !pdl.value)
       pdl_interp.finalize
     }
@@ -218,7 +222,8 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
       %y = pdl_interp.get_operand 0 of %arg2
 
       %1 = pdl_interp.create_operation "arith.mulf"(%x, %y : !pdl.value, !pdl.value) -> (%arg3 : !pdl.type)
-      %2 = pdl_interp.get_result 0 of %1
+      %11 = ematch.dedup %1
+      %2 = pdl_interp.get_result 0 of %11
       %3 = ematch.get_class_result %2
 
       %4 = pdl_interp.create_range %3 : !pdl.value

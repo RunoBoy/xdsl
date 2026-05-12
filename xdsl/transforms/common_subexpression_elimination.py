@@ -66,28 +66,33 @@ class OperationInfo:
 
 
 @dataclass
-class BlockInfo:
+class RegionInfo:
     """
-    Boilerplate helper to use in KnownBlocks cache.
+    Boilerplate helper to use in KnownRegions cache.
 
-    This is to compare blocks based on the operations they contain.
+    This is to compare regions based on all operations they contain, in block order.
     """
 
-    block: Block
+    region: Region
 
     def __hash__(self):
-        return sum(hash(OperationInfo(op)) for op in self.block.ops)
+        return sum(
+            hash(OperationInfo(op)) for block in self.region.blocks for op in block.ops
+        )
 
     def __eq__(self, other: object):
         return (
-            isinstance(other, BlockInfo)
+            isinstance(other, RegionInfo)
             and hash(self) == hash(other)
             and all(
                 OperationInfo(s) == OperationInfo(o)
-                for s, o in zip(self.block.ops, other.block.ops, strict=True)
+                for s, o in zip(
+                    (op for block in self.region.blocks for op in block.ops),
+                    (op for block in other.region.blocks for op in block.ops),
+                    strict=True,
+                )
             )
         )
-
 
 _D = TypeVar("_D")
 
@@ -123,35 +128,35 @@ class KnownOps:
         return self._known_ops.pop(OperationInfo(k))
 
 
-class KnownBlocks:
+class KnownRegions:
     """
-    Cache dictionary for known blocks used in CSE.
-    It quacks like a dict[Block, Block], but uses BlockInfo of a Block
+    Cache dictionary for known regions used in CSE.
+    It quacks like a dict[Region, Region], but uses RegionInfo of a Region
     as the actual key.
     """
 
-    _known_blocks: dict[BlockInfo, Block]
+    _known_regions: dict[RegionInfo, Region]
 
-    def __init__(self, known_blocks: "KnownBlocks | None" = None):
-        if known_blocks is None:
-            self._known_blocks = {}
+    def __init__(self, known_regions: "KnownRegions | None" = None):
+        if known_regions is None:
+            self._known_regions = {}
         else:
-            self._known_blocks = dict(known_blocks._known_blocks)
+            self._known_regions = dict(known_regions._known_regions)
 
-    def __getitem__(self, k: Block):
-        return self._known_blocks[BlockInfo(k)]
+    def __getitem__(self, k: Region):
+        return self._known_regions[RegionInfo(k)]
 
-    def __setitem__(self, k: Block, v: Block):
-        self._known_blocks[BlockInfo(k)] = v
+    def __setitem__(self, k: Region, v: Region):
+        self._known_regions[RegionInfo(k)] = v
 
-    def __contains__(self, k: Block):
-        return BlockInfo(k) in self._known_blocks
+    def __contains__(self, k: Region):
+        return RegionInfo(k) in self._known_regions
 
-    def get(self, k: Block, default: _D = None) -> Block | _D:
-        return self._known_blocks.get(BlockInfo(k), default)
+    def get(self, k: Region, default: _D = None) -> Region | _D:
+        return self._known_regions.get(RegionInfo(k), default)
 
-    def pop(self, k: Block):
-        return self._known_blocks.pop(BlockInfo(k))
+    def pop(self, k: Region):
+        return self._known_regions.pop(RegionInfo(k))
 
 
 def has_other_side_effecting_op_in_between(

@@ -5,19 +5,26 @@ from typing import Iterable, Sequence, cast
 from xdsl.dialects.builtin import (
     I32,
     IntegerAttr,
-    StringAttr, ArrayAttr, UnitAttr,
+    StringAttr,
+    ArrayAttr,
+    UnitAttr,
 )
 from xdsl.dialects.irdl import AttributeType
 from xdsl.dialects.pdl import (
     OperationType,
-    ValueType, RangeType, TypeType, AnyPDLTypeConstr, AnyPDLType,
+    ValueType,
+    RangeType,
+    TypeType,
+    AnyPDLTypeConstr,
+    AnyPDLType,
 )
 from xdsl.dialects.pdl_region import (
     RegionType,
 )
 from xdsl.ir import (
     Dialect,
-    SSAValue, Attribute,
+    SSAValue,
+    Attribute,
 )
 from xdsl.irdl import (
     IRDLOperation,
@@ -25,7 +32,11 @@ from xdsl.irdl import (
     operand_def,
     prop_def,
     result_def,
-    var_operand_def, opt_prop_def, AttrSizedOperandSegments, opt_operand_def, base
+    var_operand_def,
+    opt_prop_def,
+    AttrSizedOperandSegments,
+    opt_operand_def,
+    base,
 )
 from xdsl.parser import Parser
 from xdsl.printer import Printer
@@ -63,6 +74,7 @@ class InlineRegionOp(IRDLOperation):
 
     def __init__(self, input_op: SSAValue, repl_values: SSAValue[RegionType]) -> None:
         super().__init__(operands=[input_op, repl_values])
+
 
 @irdl_op_definition
 class GetOperationOp(IRDLOperation):
@@ -119,6 +131,20 @@ class CreateRegionOp(IRDLOperation):
         super().__init__(
             result_types=[RegionType()]
         )
+
+
+@irdl_op_definition
+class DebugPrintOp(IRDLOperation):
+    name = "pdl_interp_region.debug_print"
+    message = prop_def(StringAttr)
+
+    assembly_format = "$message attr-dict"
+
+    def __init__(self, message: str | StringAttr):
+        if isinstance(message, str):
+            message = StringAttr(message)
+        super().__init__(properties={"message": message})
+
 
 @irdl_op_definition
 class CloneRegionOp(IRDLOperation):
@@ -193,6 +219,7 @@ class DeleteOpFromRegionOp(IRDLOperation):
             operands=[opt_operand, region],
             result_types=[RegionType()]
         )
+
 
 @irdl_op_definition
 class RegionIteratorOp(IRDLOperation):
@@ -391,5 +418,6 @@ PDLInterpRegion = Dialect(
         DeleteOpFromRegionOp,
         CloneRegionOp,
         RegionIteratorOp,
+        DebugPrintOp,
     ],
 )

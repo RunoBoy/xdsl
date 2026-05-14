@@ -880,6 +880,17 @@ class PDLInterpFunctions(InterpreterFunctions):
             return (None,)
         return (candidates[index],)
 
+    @impl(pdl_interp_region.DebugPrintOp)
+    def run_debug_print(
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp_region.DebugPrintOp,
+            args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        message = op.message.data
+        interpreter.print(message)
+        return ()
+
     @impl(pdl_interp_region.InlineRegionOp)
     def run_inline_region(
             self,

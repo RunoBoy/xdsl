@@ -341,6 +341,15 @@ class EmatchFunctions(InterpreterFunctions):
 
         return ()
 
+    @impl(ematch.DedupRegionOp)
+    def run_dedup_region(
+            self,
+            interpreter: Interpreter,
+            op: ematch.DedupRegionOp,
+            args: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        return ()
+
     @impl(ematch.DedupOp)
     def run_dedup(
         self,
@@ -372,57 +381,6 @@ class EmatchFunctions(InterpreterFunctions):
         self.known_ops[input_op] = input_op
         return (input_op,)
 
-    @impl(ematch.InlineRegionOp)
-    def run_inline_region(
-            self,
-            interpreter: Interpreter,
-            op: ematch.DedupOp,
-            args: tuple[Any, ...],
-    ) -> tuple[Any, ...]:
-        """
-        Check if the region already exists in the hashcons.
-
-        If an equivalent region exists, erase the inlined region, otherwise, add every operation in the region to
-        the hashcons.
-        """
-        assert args
-        input_op = args[1]
-        assert isinstance(input_op, Operation)
-
-        region = args[0].clone()
-        assert isinstance(region, Region)
-
-        # Check if an equivalent operation exists in hashcons
-        rewriter = PDLInterpFunctions.get_rewriter(interpreter)
-        existing = self.known_regions.get(region)
-
-        # If regions does not exist
-        if existing is None:
-
-            # Add to hashcons
-            self.known_regions[region] = region
-
-            # Get final result
-            if len(region.blocks) > 1:
-                yield_op = region.last_block.last_op
-            else:
-                yield_op = region.ops.last
-            assert yield_op is not None
-
-            # Get the result value from the yield before inlining
-            results_of_yield = yield_op.operands
-
-            # Inline region
-            for block in region.blocks:
-                rewriter.inline_block(block, InsertPoint.before(input_op))
-
-            # Erase the yield op since it's no longer needed
-            rewriter.erase_op(yield_op, safe_erase=False)
-
-            return (results_of_yield,)
-
-        # If region does exist
-        return (None,)
 
     def repair(self, interpreter: Interpreter, eclass: equivalence.AnyClassOp):
         """

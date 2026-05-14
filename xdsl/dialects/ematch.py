@@ -143,23 +143,21 @@ class DedupOp(IRDLOperation):
         )
 
 @irdl_op_definition
-class InlineRegionOp(IRDLOperation):
+class DedupRegionOp(IRDLOperation):
     """
     Check if the region already exists in the hashcons.
 
     If so, remove the new one.
     """
 
-    name = "ematch.inline_region"
+    name = "ematch.dedup_region"
     input_region = operand_def(RegionType)
-    input_op = operand_def(OperationType)
-    result_value = result_def(ValueType)
 
-    assembly_format = "$input_region ` at ` $input_op attr-dict"
+    assembly_format = "`of ` $input_region attr-dict"
 
-    def __init__(self, input_region: SSAValue, input_op: SSAValue) -> None:
+    def __init__(self, input_region: SSAValue) -> None:
         super().__init__(
-            operands=[input_region, input_op], result_types=[ValueType],
+            operands=[input_region]
         )
 
 
@@ -172,6 +170,6 @@ Ematch = Dialect(
         GetClassResultsOp,
         UnionOp,
         DedupOp,
-        InlineRegionOp,
+        DedupRegionOp,
     ],
 )

@@ -73,15 +73,21 @@ func.func @impl() -> i32 {
   ^bb14:
     %7 = pdl_interp.apply_constraint "get_function_call"(%arg0 : !pdl.operation) : !pdl.operation -> ^bb15, ^bb1
   ^bb15:
-    %8 = pdl_interp_region.get_region 0 of %7 : !pdl_region.region
-    %9 = pdl_interp.apply_constraint "replace_return_with_yield"(%8 : !pdl_region.region) : !pdl_region.region -> ^bb16, ^bb1
-  ^bb16:
-    %10 = pdl_interp.apply_constraint "get_arguments_of_function"(%7 : !pdl.operation) : !pdl.range<value> -> ^bb17, ^bb1
-  ^bb17:
+    %a0 = pdl_interp_region.get_region 0 of %7 : !pdl_region.region
+    %8 = pdl_interp_region.clone_region(%a0 : !pdl_region.region)
+    %a1 = pdl_interp_region.get_operation called "func.return" 0 of %8
+    %a2 = pdl_interp.get_operand 0 of %a1
+    %a3 = pdl_interp.create_operation "scf.yield"(%a2 : !pdl.value)
+    %a4 = pdl_interp_region.insert_op_into_region(%a3 : !pdl.operation) of %8
+    %a5 = pdl_interp_region.delete_op_from_region(%a1 : !pdl.operation) of %a4
     %11 = pdl_interp.get_result 0 of %arg0
     %12 = pdl_interp.get_value_type of %11 : !pdl.type
-    %13 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%9 : !pdl_region.region) -> (%12 : !pdl.type)
-    pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%13, %7, %arg0 : !pdl.operation, !pdl.operation, !pdl.operation) -> ^bb18, ^bb1
+    %13 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%a5 : !pdl_region.region) -> (%12 : !pdl.type)
+    %14 = pdl_interp_region.get_region 0 of %13 : !pdl_region.region
+    pdl_interp.is_not_null %14 : !pdl_region.region -> ^bb16, ^bb1
+  ^bb16:
+    %caller_args = pdl_interp.get_operands of %arg0 : !pdl.range<value>
+    pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %7, %14 : !pdl.range<value>, !pdl.operation, !pdl_region.region) -> ^bb18, ^bb1
   ^bb18:
     pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %13 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
    }

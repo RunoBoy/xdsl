@@ -71,7 +71,7 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @staticmethod
     def get_pending_rewrites(
-        interpreter: Interpreter,
+            interpreter: Interpreter,
     ) -> list[tuple[SymbolRefAttr, Operation, tuple[Any, ...]]]:
         """
         Returns the list of pending rewrites to be executed. Each entry is a tuple of (rewriter, root, args).
@@ -95,16 +95,16 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @staticmethod
     def set_rewriter(
-        interpreter: Interpreter, rewriter: PatternRewriter | None
+            interpreter: Interpreter, rewriter: PatternRewriter | None
     ) -> None:
         interpreter.set_data(PDLInterpFunctions, "rewriter", rewriter)
 
     @impl(pdl_interp.GetOperandOp)
     def run_get_operand(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.GetOperandOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.GetOperandOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
@@ -113,12 +113,23 @@ class PDLInterpFunctions(InterpreterFunctions):
         else:
             return (args[0].operands[op.index.value.data],)
 
+    @impl(pdl_interp.GetOperandsOp)
+    def run_get_operands(
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.GetOperandOp,
+            args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert len(args) == 1
+        assert isinstance(args[0], Operation)
+        return (args[0].operands,)
+
     @impl(pdl_interp.GetResultOp)
     def run_get_result(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.GetResultOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.GetResultOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
@@ -128,10 +139,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp.GetResultsOp)
     def run_get_results(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.GetResultsOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.GetResultsOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
@@ -156,10 +167,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp.GetAttributeOp)
     def run_get_attribute(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.GetAttributeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.GetAttributeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
@@ -173,10 +184,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp.GetValueTypeOp)
     def run_get_value_type(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.GetValueTypeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.GetValueTypeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], SSAValue)
@@ -185,10 +196,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp.GetDefiningOpOp)
     def run_get_defining_op(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.GetDefiningOpOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.GetDefiningOpOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         if args[0] is None:
@@ -200,10 +211,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.CheckOperationNameOp)
     def run_check_operation_name(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CheckOperationNameOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CheckOperationNameOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         if not isinstance(args[0], Operation):
@@ -215,10 +226,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.CheckOperandCountOp)
     def run_check_operand_count(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CheckOperandCountOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CheckOperandCountOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
@@ -238,10 +249,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.CheckResultCountOp)
     def run_check_result_count(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CheckResultCountOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CheckResultCountOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
@@ -261,10 +272,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.SwitchOperationNameOp)
     def run_switch_operation_name(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.SwitchOperationNameOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.SwitchOperationNameOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         input_op: Operation = args[0]
         op_name = input_op.name
@@ -275,10 +286,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.CheckAttributeOp)
     def run_check_attribute(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CheckAttributeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CheckAttributeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         # args[0] should be the attribute value to check
@@ -291,10 +302,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.CheckTypeOp)
     def run_check_type(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CheckTypeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CheckTypeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         value = args[0]
@@ -305,10 +316,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.IsNotNullOp)
     def run_is_not_null(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.IsNotNullOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.IsNotNullOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         # Check if the value is not None
@@ -318,10 +329,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.AreEqualOp)
     def run_are_equal(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.AreEqualOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.AreEqualOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 2
         # Compare the two values for equality
@@ -331,10 +342,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp.ReplaceOp)
     def run_replace(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.ReplaceOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.ReplaceOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert args
         input_op = args[0]
@@ -362,30 +373,30 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp.CreateAttributeOp)
     def run_create_attribute(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CreateAttributeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CreateAttributeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         # Simply return the attribute value
         return (op.value,)
 
     @impl(pdl_interp.CreateTypeOp)
     def run_create_type(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CreateTypeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CreateTypeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         # Simply return the type value
         return (op.value,)
 
     @impl(pdl_interp.CreateTypesOp)
     def run_create_types(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CreateTypesOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CreateTypesOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         # Return the list of types from the array attribute
         types = list(op.value.data)
@@ -393,10 +404,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.SwitchAttributeOp)
     def run_switch_attribute(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.SwitchAttributeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.SwitchAttributeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         input_attr = args[0]
@@ -407,12 +418,12 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @staticmethod
     def create_operation(
-        interpreter: Interpreter,
-        args: tuple[Any, ...],
-        op_name: str,
-        attr_names: list[str],
-        num_operands: int,
-        num_attributes: int,
+            interpreter: Interpreter,
+            args: tuple[Any, ...],
+            op_name: str,
+            attr_names: list[str],
+            num_operands: int,
+            num_attributes: int,
     ) -> IRDLOperation:
         # Get operation name
         ctx = PDLInterpFunctions.get_ctx(interpreter)
@@ -431,14 +442,14 @@ class PDLInterpFunctions(InterpreterFunctions):
         attributes: dict[str, Attribute] = {}
         properties: dict[str, Attribute] = {}
         for name, prop_or_attr in zip(
-            attr_names,
-            args[num_operands : num_operands + num_attributes],
+                attr_names,
+                args[num_operands: num_operands + num_attributes],
         ):
             if name in existing_properties:
                 properties[name] = prop_or_attr
             else:
                 attributes[name] = prop_or_attr
-        result_types = list(args[num_operands + num_attributes :])
+        result_types = list(args[num_operands + num_attributes:])
 
         # Create the new operation
         result_op = op_type.create(
@@ -451,10 +462,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp.CreateOperationOp)
     def run_create_operation(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CreateOperationOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CreateOperationOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         result_op = PDLInterpFunctions.create_operation(
             interpreter,
@@ -472,13 +483,13 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @staticmethod
     def create_operation_with_region(
-        interpreter: Interpreter,
-        args: tuple[Any, ...],
-        op_name: str,
-        attr_names: list[str],
-        num_operands: int,
-        num_attributes: int,
-        num_regions: int,
+            interpreter: Interpreter,
+            args: tuple[Any, ...],
+            op_name: str,
+            attr_names: list[str],
+            num_operands: int,
+            num_attributes: int,
+            num_regions: int,
     ) -> IRDLOperation:
         # Get operation name
         ctx = PDLInterpFunctions.get_ctx(interpreter)
@@ -497,14 +508,14 @@ class PDLInterpFunctions(InterpreterFunctions):
         attributes: dict[str, Attribute] = {}
         properties: dict[str, Attribute] = {}
         for name, prop_or_attr in zip(
-            attr_names,
-            args[num_operands : num_operands + num_attributes],
+                attr_names,
+                args[num_operands: num_operands + num_attributes],
         ):
             if name in existing_properties:
                 properties[name] = prop_or_attr
             else:
                 attributes[name] = prop_or_attr
-        result_types = list(args[num_operands + num_attributes :])
+        result_types = list(args[num_operands + num_attributes:])
 
         # Seperate the regions and operands
         filtered_regions = [x.clone() for x in operands if isinstance(x, Region)]
@@ -522,10 +533,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp_region.CreateOperationRegionOp)
     def run_create_operation_with_region(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp_region.CreateOperationRegionOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp_region.CreateOperationRegionOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         result_op = PDLInterpFunctions.create_operation_with_region(
             interpreter,
@@ -542,10 +553,9 @@ class PDLInterpFunctions(InterpreterFunctions):
 
         return (result_op,)
 
-
     @impl_callable(pdl_interp.FuncOp)
     def call_func(
-        self, interpreter: Interpreter, op: pdl_interp.FuncOp, args: tuple[Any, ...]
+            self, interpreter: Interpreter, op: pdl_interp.FuncOp, args: tuple[Any, ...]
     ):
         if op.sym_name.data == "matcher":
             assert len(args) == 1
@@ -559,10 +569,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.ApplyConstraintOp)
     def run_apply_constraint(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.ApplyConstraintOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.ApplyConstraintOp,
+            args: tuple[Any, ...],
     ) -> tuple[Successor, PythonValues]:
         constraint_name = op.constraint_name.data
 
@@ -577,10 +587,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.RecordMatchOp)
     def run_recordmatch(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.RecordMatchOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.RecordMatchOp,
+            args: tuple[Any, ...],
     ):
         PDLInterpFunctions.get_pending_rewrites(interpreter).append(
             (
@@ -593,16 +603,16 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.FinalizeOp)
     def run_finalize(
-        self, interpreter: Interpreter, op: pdl_interp.FinalizeOp, args: tuple[Any, ...]
+            self, interpreter: Interpreter, op: pdl_interp.FinalizeOp, args: tuple[Any, ...]
     ):
         return ReturnedValues(()), ()
 
     @impl_terminator(pdl_interp.ForEachOp)
     def run_foreach(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.ForEachOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.ForEachOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         values = args[0]
@@ -615,16 +625,16 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_terminator(pdl_interp.ContinueOp)
     def run_continue(
-        self, interpreter: Interpreter, op: pdl_interp.ContinueOp, args: tuple[Any, ...]
+            self, interpreter: Interpreter, op: pdl_interp.ContinueOp, args: tuple[Any, ...]
     ):
         return ReturnedValues(args), ()
 
     @impl(pdl_interp.CreateRangeOp)
     def run_create_range(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp.CreateRangeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp.CreateRangeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         result: list[Any] = []
         for val, arg in zip(args, op.arguments):
@@ -649,10 +659,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp_region.GetRegionOp)
     def run_get_region(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp_region.GetRegionOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp_region.GetRegionOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         assert isinstance(args[0], Operation)
@@ -746,6 +756,24 @@ class PDLInterpFunctions(InterpreterFunctions):
         new_region = Region([new_block])
 
         return (new_region,)
+
+    @impl(pdl_interp_region.RegionIteratorOp)
+    def run_iterate_region(
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp_region.CreateRegionOp,
+            args: tuple[Any, ...],
+        ) -> tuple[Any, ...]:
+        assert args
+        region = args[0]
+        assert isinstance(region, Region)
+
+        # Only support for single-block regions is currently present
+        if len(region.blocks) > 1:
+            return (None,)
+
+        operations = list(region.blocks[0].ops)
+        return (operations,)
 
     @impl(pdl_interp_region.CloneRegionOp)
     def run_clone_region(
@@ -854,10 +882,10 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl(pdl_interp_region.InlineRegionOp)
     def run_inline_region(
-        self,
-        interpreter: Interpreter,
-        op: pdl_interp_region.InlineRegionOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp_region.InlineRegionOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert args
         input_op = args[0]
@@ -889,7 +917,7 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_external("get_function_call")
     def run_get_function_call_op(
-        self, interp: Interpreter, op: Operation, args: PythonValues
+            self, interp: Interpreter, op: Operation, args: PythonValues
     ) -> tuple[bool, tuple[Operation | None, ...]]:
         assert args
         call_operation = args[0]
@@ -931,7 +959,6 @@ class PDLInterpFunctions(InterpreterFunctions):
 
         return True, tuple([new_region])
 
-
     @impl_external("get_arguments_of_function")
     def run_get_arguments_of_function(
             self, interp: Interpreter, op: Operation, args: PythonValues
@@ -949,29 +976,23 @@ class PDLInterpFunctions(InterpreterFunctions):
             self, interp: Interpreter, op: Operation, args: PythonValues
     ) -> tuple[bool, tuple[...]]:
         assert args
-        operation = args[0]
-        assert isinstance(operation, Operation)
+        caller_args = args[0]
+        assert isinstance(caller_args, OpOperands)
 
-        original_func = args[1]
-        assert isinstance(original_func, Operation)
+        callee = args[1]
+        assert isinstance(callee, Operation)
 
-        call = args[2]
-        assert isinstance(call, CallOp)
+        region = args[2]
+        assert isinstance(region, Region)
 
-        original_args = original_func.args
-        call_args = call.arguments
+        callee_to_caller = {}
+        for callee_arg, caller_arg in zip(callee.args, caller_args):
+            callee_to_caller.update({callee_arg.name_hint: caller_arg})
 
-        original_to_call = {}
-        for i, _ in enumerate(original_args):
-            original_to_call.update({original_args[i].name_hint : call_args[i]})
-
-        args_to_replace_name_hints = [x.name_hint for x in original_args]
-
-        for op in operation.walk():
+        for op in region.walk():
             if len(op.operands) > 0:
                 for i, operand in enumerate(op.operands):
-                    if operand.name_hint is not None:
-                        if operand.name_hint in args_to_replace_name_hints:
-                            op.operands[i] = original_to_call[operand.name_hint]
+                    if operand.name_hint in callee_to_caller:
+                        op.operands[i] = callee_to_caller[operand.name_hint]
 
         return True, tuple([])

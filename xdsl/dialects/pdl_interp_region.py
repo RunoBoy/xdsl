@@ -194,6 +194,27 @@ class DeleteOpFromRegionOp(IRDLOperation):
             result_types=[RegionType()]
         )
 
+@irdl_op_definition
+class RegionIteratorOp(IRDLOperation):
+    name = "pdl_interp_region.region_iterator"
+    region = operand_def(RegionType)
+
+    result_op = result_def(RangeType[OperationType])
+
+    assembly_format = (
+        "`(` $region `:` type($region) `)` "
+        "attr-dict"
+    )
+
+    def __init__(
+        self,
+        region: SSAValue,
+    ):
+        super().__init__(
+            operands=[region],
+            result_types=[RangeType(OperationType())]
+        )
+
 
 @irdl_op_definition
 class CreateOperationRegionOp(IRDLOperation):
@@ -369,5 +390,6 @@ PDLInterpRegion = Dialect(
         InsertOpIntoRegionOp,
         DeleteOpFromRegionOp,
         CloneRegionOp,
+        RegionIteratorOp,
     ],
 )

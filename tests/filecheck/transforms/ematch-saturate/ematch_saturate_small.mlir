@@ -1,10 +1,3 @@
-func.func @log_return(%arg0: f32) -> f32 {
-    %0 = equivalence.graph : () -> (f32) {
-      %1 = math.log %arg0 : f32
-      equivalence.yield %1 : f32
-    }
-    return %0 : f32
-}
 func.func @compound(%arg0: f32) -> f32 {
     %0 = equivalence.graph : () -> (f32) {
       %1 = math.exp %arg0 : f32
@@ -14,10 +7,7 @@ func.func @compound(%arg0: f32) -> f32 {
 }
 func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
     %0 = equivalence.graph : () -> (f32) {
-      %1 = func.call @log_return(%arg0) : (f32) -> f32
-      %2 = func.call @log_return(%arg1) : (f32) -> f32
-      %3 = arith.addf %1, %2 : f32
-      %4 = func.call @compound(%3) : (f32) -> f32
+      %4 = func.call @compound(%arg0) : (f32) -> f32
       equivalence.yield %4 : f32
     }
     return %0 : f32
@@ -61,7 +51,6 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
       %1020 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%1017 : !pdl_region.region) -> (%1019 : !pdl.type)
       %1023 = ematch.dedup %1020
       %1024 = pdl_interp_region.get_region 0 of %1023 : !pdl_region.region
-      ematch.dedup_region %1024
       %1025 = pdl_interp.get_operands of %arg0 : !pdl.range<value>
       pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1025, %100, %1024 : !pdl.range<value>, !pdl.operation, !pdl_region.region) -> ^bb424, ^bb1
     ^bb424:
@@ -133,7 +122,8 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
 
     pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
+      %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
+      ematch.dedup_region %inlined_ops
       pdl_interp.replace %arg0 with (%1 : !pdl.value)
       pdl_interp.finalize
     }

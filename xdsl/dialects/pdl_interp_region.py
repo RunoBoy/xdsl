@@ -67,13 +67,14 @@ class InlineRegionOp(IRDLOperation):
     input_op = operand_def(OperationType)
     repl_values = var_operand_def(RegionType)
     value = result_def(ValueType)
+    operations = result_def(RangeType[OperationType])
 
     assembly_format = (
         "$input_op `with` ` ` `(` ($repl_values^ `:` type($repl_values))? `)` attr-dict"
     )
 
     def __init__(self, input_op: SSAValue, repl_values: SSAValue[RegionType]) -> None:
-        super().__init__(operands=[input_op, repl_values])
+        super().__init__(operands=[input_op, repl_values], result_types=[ValueType(), RangeType(OperationType())])
 
 
 @irdl_op_definition

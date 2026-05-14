@@ -151,7 +151,7 @@ class DedupRegionOp(IRDLOperation):
     """
 
     name = "ematch.dedup_region"
-    input_region = operand_def(RegionType)
+    input_region = operand_def(RangeType[OperationType])
 
     assembly_format = "`of ` $input_region attr-dict"
 

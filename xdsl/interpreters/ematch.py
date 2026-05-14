@@ -8,6 +8,7 @@ from xdsl.analysis.dataflow import ChangeResult, ProgramPoint
 from xdsl.analysis.sparse_analysis import Lattice, SparseForwardDataFlowAnalysis
 from xdsl.dialects import ematch, equivalence
 from xdsl.dialects.builtin import SymbolRefAttr
+from xdsl.dialects.pdl import RangeType
 from xdsl.interpreter import Interpreter, InterpreterFunctions, impl, register_impls
 from xdsl.interpreters.pdl_interp import PDLInterpFunctions
 from xdsl.ir import Block, Operation, OpResult, SSAValue, Region
@@ -348,6 +349,21 @@ class EmatchFunctions(InterpreterFunctions):
             op: ematch.DedupRegionOp,
             args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
+        assert len(args) == 1
+        input_region = args[0]
+
+        for input_op in input_region:
+
+            # Check if an equivalent operation exists in hashcons
+            existing = self.known_ops.get(input_op)
+
+            if existing is not None and existing is not input_op:
+                # Deduplicate: erase the new op and return existing
+                rewriter = PDLInterpFunctions.get_rewriter(interpreter)
+                rewriter.erase_op(input_op)
+
+            # No duplicate found, insert into hashcons
+            self.known_ops[input_op] = input_op
         return ()
 
     @impl(ematch.DedupOp)

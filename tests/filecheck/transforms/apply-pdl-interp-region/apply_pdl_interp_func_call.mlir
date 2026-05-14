@@ -114,7 +114,7 @@ module @rewriters {
 
     pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
+      %1, %2 = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
       pdl_interp.replace %arg0 with (%1 : !pdl.value)
       pdl_interp.finalize
     }

@@ -917,14 +917,14 @@ class PDLInterpFunctions(InterpreterFunctions):
 
         # Inline the block's operations before the input operation
         rewriter = self.get_rewriter(interpreter)
-        for block in new_region.blocks:
-            rewriter.inline_block(block, InsertPoint.before(input_op))
+        ops = list(region.blocks[0].walk())
+        rewriter.inline_block(region.blocks[0], InsertPoint.before(input_op))
 
         # Erase the yield op since it's no longer needed
         rewriter.erase_op(yield_op, safe_erase=False)
 
         # Return the value that was yielded (now defined by an inlined op)
-        return (results_of_yield,)
+        return (results_of_yield,ops)
 
     @impl_external("get_function_call")
     def run_get_function_call_op(

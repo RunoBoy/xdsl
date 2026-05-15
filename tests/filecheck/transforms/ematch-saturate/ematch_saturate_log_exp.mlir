@@ -14,6 +14,14 @@ func.func @log_return2(%arg0: f32) -> f32 {
     return %0 : f32
 }
 
+func.func @log_return3(%arg0: f32) -> f32 {
+    %0 = equivalence.graph : () -> (f32) {
+      %1 = func.call @log_return2(%arg0) : (f32) -> f32
+      equivalence.yield %1 : f32
+    }
+    return %0 : f32
+}
+
 func.func @compound(%arg0: f32) -> f32 {
     %0 = equivalence.graph : () -> (f32) {
       %1 = math.exp %arg0 : f32
@@ -23,8 +31,8 @@ func.func @compound(%arg0: f32) -> f32 {
 }
 func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
     %0 = equivalence.graph : () -> (f32) {
-      %1 = func.call @log_return(%arg0) : (f32) -> f32
-      %2 = func.call @log_return(%arg1) : (f32) -> f32
+      %1 = func.call @log_return3(%arg0) : (f32) -> f32
+      %2 = func.call @log_return3(%arg1) : (f32) -> f32
       %3 = arith.addf %1, %2 : f32
       %4 = func.call @compound(%3) : (f32) -> f32
       equivalence.yield %4 : f32
@@ -170,6 +178,7 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
       %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)
+      ematch.add_cloned_eclasses of %region
       %0 = pdl_interp.get_result 0 of %execute_region
       %1 = ematch.get_class_result %0
       %2 = pdl_interp.create_range %1 : !pdl.value

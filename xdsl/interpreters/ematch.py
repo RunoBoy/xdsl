@@ -394,6 +394,8 @@ class EmatchFunctions(InterpreterFunctions):
                 # If the operation does not exist, it is either an equivalence class, which means that the classes need
                 # to be merged, or it's a regular operation, which means it needs to be added to the hashcons and the
                 # uses updated
+                if isinstance(input_op, equivalence.AnyClassOp):
+                    self.worklist.append(input_op)
                 self.known_ops[input_op] = input_op
 
         return ()
@@ -443,6 +445,23 @@ class EmatchFunctions(InterpreterFunctions):
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
         eclass = self.eclass_union_find.find(eclass)
 
+        if eclass.parent is None:
+            return
+
+            # --- NEW: E-Class Overlap Detection ---
+            # Look at the operands inside this e-class. If another e-class is tracking
+            # the exact same operand, they are duplicates and must be merged!
+        for operand in list(eclass.operands):
+            for use in list(operand.uses):
+                other_op = use.operation
+                if isinstance(other_op, equivalence.AnyClassOp) and other_op is not eclass:
+                    if self.eclass_union(interpreter, eclass, other_op):
+                        # Update our reference to the surviving e-class
+                        eclass = self.eclass_union_find.find(eclass)
+                        # Add the surviving e-class to the worklist for further repair
+                        self.worklist.append(eclass)
+
+            # If this specific e-class instance was erased during the merge, stop processing it
         if eclass.parent is None:
             return
 
@@ -533,6 +552,7 @@ class EmatchFunctions(InterpreterFunctions):
                         break  # Only need to add to worklist once per operation
 
     def rebuild(self, interpreter: Interpreter):
+        test = ""
         while self.worklist:
             todo = OrderedSet(self.eclass_union_find.find(c) for c in self.worklist)
             self.worklist.clear()

@@ -78,7 +78,7 @@ func.func @main() -> i32 {
       %1018 = pdl_interp.get_result 0 of %arg0
       %1019 = pdl_interp.get_value_type of %1018 : !pdl.type
       %1020 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%1017 : !pdl_region.region) -> (%1019 : !pdl.type)
-      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1020, %100, %arg0 : !pdl.operation, !pdl.operation, !pdl.operation) -> ^bb424, ^bb1
+      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1020, %arg0 : !pdl.operation, !pdl.operation) -> ^bb424, ^bb1
     ^bb424:
       pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %1020 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
     ^bb430:

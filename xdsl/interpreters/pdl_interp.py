@@ -984,26 +984,20 @@ class PDLInterpFunctions(InterpreterFunctions):
 
     @impl_external("replace_func_args_with_correct_definitions")
     def run_replace_func_args_with_correct_definitions(
-            self, interp: Interpreter, op: Operation, args: PythonValues
+            self, interpreter: Interpreter, op: Operation, args: PythonValues
     ) -> tuple[bool, tuple[...]]:
         assert args
         caller_args = args[0]
         assert isinstance(caller_args, OpOperands)
 
-        callee = args[1]
-        assert isinstance(callee, Operation)
-
         region = args[2]
         assert isinstance(region, Region)
 
-        callee_to_caller = {}
-        for callee_arg, caller_arg in zip(callee.args, caller_args):
-            callee_to_caller.update({callee_arg.name_hint: caller_arg})
+        rewriter = self.get_rewriter(interpreter)
 
-        for op in region.walk():
-            if len(op.operands) > 0:
-                for i, operand in enumerate(op.operands):
-                    if operand.name_hint in callee_to_caller:
-                        op.operands[i] = callee_to_caller[operand.name_hint]
+        cloned_entry_block = region.blocks[0]
+
+        for cloned_arg, caller_arg in zip(cloned_entry_block.args, caller_args):
+            rewriter.replace_all_uses_with(cloned_arg, caller_arg)
 
         return True, tuple([])

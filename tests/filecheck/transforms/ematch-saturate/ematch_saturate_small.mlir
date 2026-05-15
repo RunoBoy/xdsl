@@ -52,7 +52,7 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
       %1023 = ematch.dedup %1020
       %1024 = pdl_interp_region.get_region 0 of %1023 : !pdl_region.region
       %1025 = pdl_interp.get_operands of %arg0 : !pdl.range<value>
-      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1025, %100, %1024 : !pdl.range<value>, !pdl.operation, !pdl_region.region) -> ^bb424, ^bb1
+      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1025, %1024 : !pdl.range<value>, !pdl_region.region) -> ^bb424, ^bb1
     ^bb424:
       pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %1023 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
     ^bb50:

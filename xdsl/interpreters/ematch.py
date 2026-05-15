@@ -80,6 +80,25 @@ class EmatchFunctions(InterpreterFunctions):
             else:
                 self.eclass_union_find.add(op)
 
+    @impl(ematch.AddClonedEClasses)
+    def run_add_cloned_eclasses(
+        self,
+        interpreter: Interpreter,
+        op: ematch.GetClassValsOp,
+        args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert len(args) == 1
+        input_region = args[0]
+        assert isinstance(input_region, Region)
+
+        for op in input_region.walk():
+            if not isinstance(op, equivalence.AnyClassOp):
+                self.known_ops[op] = op
+            else:
+                self.eclass_union_find.add(op)
+
+        return ()
+
     @impl(ematch.GetClassValsOp)
     def run_get_class_vals(
         self,
@@ -271,7 +290,15 @@ class EmatchFunctions(InterpreterFunctions):
         # used by different parent eclasses after their children were merged:
         new_operands = OrderedSet(to_keep.operands)
         new_operands.update(to_replace.operands)
-        to_keep.operands = new_operands
+
+        clean_operands = OrderedSet()
+        for op in new_operands:
+            # If the operand is the result of ANY equivalence.class, discard it!
+            if isinstance(op, OpResult) and isinstance(op.owner, equivalence.AnyClassOp):
+                continue
+            clean_operands.add(op)
+
+        to_keep.operands = tuple(clean_operands)
 
         for use in to_replace.result.uses:
             # uses are removed from the hashcons before the replacement is carried out.
@@ -353,16 +380,20 @@ class EmatchFunctions(InterpreterFunctions):
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
         for input_op in inlined_ops:
-
-            # Check if an equivalent operation exists in hashcons
+            # Check if operation exists already
             existing = self.known_ops.get(input_op)
 
+            # Replace the operation with the existing one
             if existing is not None and existing is not input_op:
                 # Deduplicate: replace all uses of the new op with the existing op's results
                 # This safely updates the use-def chains before erasing input_op
                 rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
+
+            # If it doesn't exist, add it to the hashcons
             else:
-                # No duplicate found, insert into hashcons
+                # If the operation does not exist, it is either an equivalence class, which means that the classes need
+                # to be merged, or it's a regular operation, which means it needs to be added to the hashcons and the
+                # uses updated
                 self.known_ops[input_op] = input_op
 
         return ()

@@ -143,6 +143,22 @@ class DedupOp(IRDLOperation):
         )
 
 @irdl_op_definition
+class AddClonedEClasses(IRDLOperation):
+    """
+    Given a cloned region, add its E-classes to the Union-Find
+    """
+    name = "ematch.add_cloned_eclasses"
+    input_region = operand_def(RegionType)
+
+    assembly_format = "`of ` $input_region attr-dict"
+
+    def __init__(self, input_region: SSAValue):
+        super().__init__(
+            operands=[input_region]
+        )
+
+
+@irdl_op_definition
 class DedupRegionOp(IRDLOperation):
     """
     Check if the region already exists in the hashcons.
@@ -171,5 +187,6 @@ Ematch = Dialect(
         UnionOp,
         DedupOp,
         DedupRegionOp,
+        AddClonedEClasses,
     ],
 )

@@ -5,6 +5,15 @@ func.func @log_return(%arg0: f32) -> f32 {
     }
     return %0 : f32
 }
+
+func.func @log_return2(%arg0: f32) -> f32 {
+    %0 = equivalence.graph : () -> (f32) {
+      %1 = func.call @log_return(%arg0) : (f32) -> f32
+      equivalence.yield %1 : f32
+    }
+    return %0 : f32
+}
+
 func.func @compound(%arg0: f32) -> f32 {
     %0 = equivalence.graph : () -> (f32) {
       %1 = math.exp %arg0 : f32
@@ -22,7 +31,6 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
     }
     return %0 : f32
 }
-
 
   pdl_interp.func @matcher(%arg0 : !pdl.operation) {
       pdl_interp.check_operation_name of %arg0 is "scf.execute_region" -> ^bb31, ^bb40
@@ -63,8 +71,7 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
       // Create the execute_region where the function body will be executed
       %result = pdl_interp.get_result 0 of %arg0
       %type = pdl_interp.get_value_type of %result : !pdl.type
-      %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%equivalence_region_v3 : !pdl_region.region) -> (%type : !pdl.type)
-      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %execute_region : !pdl.operation, !pdl.operation) : benefit(2) -> ^bb1
+      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %equivalence_region_v4, %type : !pdl.operation, !pdl_region.region, !pdl.type) : benefit(2) -> ^bb1
     ^bb50:
       pdl_interp.check_operation_name of %arg0 is "math.exp" -> ^bb51, ^bb1
     ^bb51:
@@ -130,16 +137,40 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
       pdl_interp.finalize
     }
 
-    pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
+     pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
-      pdl_interp.replace %arg0 with (%1 : !pdl.value)
-      ematch.dedup_region %inlined_ops
-      pdl_interp.finalize
+      %2 = pdl_interp.get_defining_op of %1 : !pdl.value
+      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb1, ^bb2
+      ^bb1:
+          // 1. Capture the yielded class BEFORE anything is erased
+          %yielded_class_val = ematch.get_class_result %1
+          %yielded_class_range = pdl_interp.create_range %yielded_class_val : !pdl.value
+
+          // 2. Capture the target class (%y) using get_defining_op
+          %arg0_res = pdl_interp.get_result 0 of %arg0
+          %y_val = ematch.get_class_result %arg0_res
+          %y_op = pdl_interp.get_defining_op of %y_val : !pdl.value
+
+          // 3. Forward uses safely so we don't create zombie pointers
+          pdl_interp.replace %arg0 with (%1 : !pdl.value)
+
+          // 4. Hashcons the region (Phase 1 of your FSM)
+          ematch.dedup_region %inlined_ops
+
+          // 5. Link the E-classes (Phase 2 of your FSM)
+          ematch.union %y_op : !pdl.operation, %yielded_class_range : !pdl.range<value>
+
+          pdl_interp.finalize
+       ^bb2:
+          pdl_interp.replace %arg0 with (%1 : !pdl.value)
+          ematch.dedup_region %inlined_ops
+          pdl_interp.finalize
     }
 
-    pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.operation) {
-      %0 = pdl_interp.get_result 0 of %arg1
+    pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
+      %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)
+      %0 = pdl_interp.get_result 0 of %execute_region
       %1 = ematch.get_class_result %0
       %2 = pdl_interp.create_range %1 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %2 : !pdl.range<value>

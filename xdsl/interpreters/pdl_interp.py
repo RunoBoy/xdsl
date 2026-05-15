@@ -929,7 +929,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         rewriter.erase_op(yield_op, safe_erase=False)
 
         # Return the value that was yielded (now defined by an inlined op)
-        return (results_of_yield,ops)
+        return (results_of_yield[0],ops)
 
     @impl_external("get_function_call")
     def run_get_function_call_op(

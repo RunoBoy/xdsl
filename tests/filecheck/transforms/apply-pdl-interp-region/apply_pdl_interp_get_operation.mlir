@@ -50,8 +50,10 @@ module @rewriters {
       %5 = pdl_interp.create_operation "scf.yield"(%4 : !pdl.value)
       %z = pdl_interp_region.insert_op_into_region(%5 : !pdl.operation) of %3
 
-      %13 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%x : !pdl_region.region) -> (%b : !pdl.type)
-      %14 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%z : !pdl_region.region) -> (%b : !pdl.type)
+      %16 = pdl_interp_region.clone_region(%x : !pdl_region.region)
+      %13 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%16 : !pdl_region.region) -> (%b : !pdl.type)
+      %17 = pdl_interp_region.clone_region(%z : !pdl_region.region)
+      %14 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%17 : !pdl_region.region) -> (%b : !pdl.type)
       %15 = pdl_interp.get_result 0 of %13
       pdl_interp.replace %arg0 with (%15 : !pdl.value)
 

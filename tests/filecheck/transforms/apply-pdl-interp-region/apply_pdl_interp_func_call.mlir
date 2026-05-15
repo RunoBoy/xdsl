@@ -75,6 +75,9 @@ func.func @impl() -> i32 {
   ^bb15:
     %a0 = pdl_interp_region.get_region 0 of %7 : !pdl_region.region
     %8 = pdl_interp_region.clone_region(%a0 : !pdl_region.region)
+    %caller_args = pdl_interp.get_operands of %arg0 : !pdl.range<value>
+    pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %8 : !pdl.range<value>, !pdl_region.region) -> ^bb18, ^bb1
+  ^bb18:
     %a1 = pdl_interp_region.get_operation called "func.return" 0 of %8
     %a2 = pdl_interp.get_operand 0 of %a1
     %a3 = pdl_interp.create_operation "scf.yield"(%a2 : !pdl.value)
@@ -86,9 +89,6 @@ func.func @impl() -> i32 {
     %14 = pdl_interp_region.get_region 0 of %13 : !pdl_region.region
     pdl_interp.is_not_null %14 : !pdl_region.region -> ^bb16, ^bb1
   ^bb16:
-    %caller_args = pdl_interp.get_operands of %arg0 : !pdl.range<value>
-    pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %14 : !pdl.range<value>, !pdl_region.region) -> ^bb18, ^bb1
-  ^bb18:
     pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %13 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
    }
 
@@ -96,7 +96,8 @@ func.func @impl() -> i32 {
 module @rewriters {
     pdl_interp.func @if_true_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
+      %3 = pdl_interp_region.clone_region(%0 : !pdl_region.region)
+      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%3 : !pdl_region.region) -> (%arg1 : !pdl.type)
       %2 = pdl_interp.get_result 0 of %1
 
       pdl_interp.replace %arg0 with (%2 : !pdl.value)
@@ -105,7 +106,8 @@ module @rewriters {
 
      pdl_interp.func @if_false_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
       %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
+      %3 = pdl_interp_region.clone_region(%0 : !pdl_region.region)
+      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%3 : !pdl_region.region) -> (%arg1 : !pdl.type)
       %2 = pdl_interp.get_result 0 of %1
 
       pdl_interp.replace %arg0 with (%2 : !pdl.value)

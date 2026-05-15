@@ -39,25 +39,37 @@ pdl_interp.func @matcher(%arg0: !pdl.operation) {
 ^bb3:
   %4 = pdl_interp.get_result 0 of %arg0
   %5 = pdl_interp.get_value_type of %4 : !pdl.type
-  pdl_interp.record_match @rewriters::@pdl_generated_rewriter_1(%arg0 , %5 : !pdl.operation, !pdl.type) : benefit(1) -> ^bb6
+  pdl_interp.record_match @rewriters::@if_false_rewriter(%arg0 , %5 : !pdl.operation, !pdl.type) : benefit(1) -> ^bb6
 ^bb4:
   pdl_interp.check_operation_name of %arg0 is "scf.execute_region" -> ^bb5, ^bb6
 ^bb5:
-  pdl_interp.record_match @rewriters::@pdl_generated_rewriter_2(%arg0 : !pdl.operation) : benefit(1) -> ^bb6
+  pdl_interp.record_match @rewriters::@execute_region_rewriter(%arg0 : !pdl.operation) : benefit(1) -> ^bb6
 ^bb6:
   pdl_interp.finalize
 }
 
 module @rewriters {
-    pdl_interp.func @pdl_generated_rewriter_1(%arg0: !pdl.operation, %arg1 : !pdl.type) {
-      %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
+pdl_interp.func @if_true_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
+      %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
+      %3 = pdl_interp_region.clone_region(%0 : !pdl_region.region)
+      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%3 : !pdl_region.region) -> (%arg1 : !pdl.type)
       %2 = pdl_interp.get_result 0 of %1
+
       pdl_interp.replace %arg0 with (%2 : !pdl.value)
       pdl_interp.finalize
     }
 
-    pdl_interp.func @pdl_generated_rewriter_2(%arg0: !pdl.operation) {
+     pdl_interp.func @if_false_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
+      %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
+      %3 = pdl_interp_region.clone_region(%0 : !pdl_region.region)
+      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%3 : !pdl_region.region) -> (%arg1 : !pdl.type)
+      %2 = pdl_interp.get_result 0 of %1
+
+      pdl_interp.replace %arg0 with (%2 : !pdl.value)
+      pdl_interp.finalize
+    }
+
+    pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1, %2 = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
       pdl_interp.replace %arg0 with (%1 : !pdl.value)

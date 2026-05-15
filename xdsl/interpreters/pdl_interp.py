@@ -518,7 +518,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         result_types = list(args[num_operands + num_attributes:])
 
         # Seperate the regions and operands
-        filtered_regions = [x.clone() for x in operands if isinstance(x, Region)]
+        filtered_regions = [x for x in operands if isinstance(x, Region)]
         filtered_operands = [x for x in operands if not isinstance(x, Region)]
         # Create the new operation
         result_op = op_type.create(

@@ -917,7 +917,12 @@ class PDLInterpFunctions(InterpreterFunctions):
 
         # Inline the block's operations before the input operation
         rewriter = self.get_rewriter(interpreter)
-        ops = list(region.blocks[0].walk())
+        ops = list(region.blocks[0].walk())[:-1]
+
+        # for op in ops[:-1]:
+        #     op.parent = None
+        #     rewriter.insert_op(op, InsertPoint.before(input_op))
+
         rewriter.inline_block(region.blocks[0], InsertPoint.before(input_op))
 
         # Erase the yield op since it's no longer needed

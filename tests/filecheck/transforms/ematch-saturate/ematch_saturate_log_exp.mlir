@@ -33,39 +33,38 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
     ^bb40:
       pdl_interp.check_operation_name of %arg0 is "func.call" -> ^bb41, ^bb50
     ^bb41:
-      %100 = pdl_interp.apply_constraint "get_function_call"(%arg0 : !pdl.operation) : !pdl.operation -> ^bb42, ^bb1
+      %function_call = pdl_interp.apply_constraint "get_function_call"(%arg0 : !pdl.operation) : !pdl.operation -> ^bb42, ^bb1
     ^bb42:
       // get region of function (function body)
-      %101 = pdl_interp_region.get_region 0 of %100 : !pdl_region.region
+      %function_call_original_region = pdl_interp_region.get_region 0 of %function_call : !pdl_region.region
+      %function_call_new_region = pdl_interp_region.clone_region(%function_call_original_region : !pdl_region.region)
+      // Replace the function arguments with the SSA values from the caller body
+      %caller_args = pdl_interp.get_operands of %arg0 : !pdl.range<value>
+      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %function_call_new_region : !pdl.range<value>, !pdl_region.region) -> ^bb424, ^bb1
+    ^bb424:
       // check if an equivalence graph is present
-      %1011 = pdl_interp_region.get_operation() called "equivalence.graph" 0 of %101
-      // check if it's found
-      pdl_interp.is_not_null %1011 : !pdl.operation -> ^bb421, ^bb1
-    ^bb421:
-      // extract the equvialence graph body
-      %1012 = pdl_interp_region.get_region 0 of %1011 : !pdl_region.region
-      %1022 = pdl_interp_region.clone_region(%1012 : !pdl_region.region)
+      %equivalence_graph = pdl_interp_region.get_operation() called "equivalence.graph" 0 of %function_call_new_region
+      pdl_interp.is_not_null %equivalence_graph : !pdl.operation -> ^bb421, ^bb1
+
+    ^bb421: // equivalence graph found
+      // extract the equivalence graph body
+      %equivalence_region = pdl_interp_region.get_region 0 of %equivalence_graph : !pdl_region.region
+      %equivalence_region_v2 = pdl_interp_region.clone_region(%equivalence_region : !pdl_region.region)
       // extract the equivalence yield
-      %1013 = pdl_interp_region.get_operation() called "equivalence.yield" 0 of %1022
-      pdl_interp.is_not_null %1013 : !pdl.operation -> ^bb422, ^bb1
+      %equivalence_yield = pdl_interp_region.get_operation() called "equivalence.yield" 0 of %equivalence_region_v2
+      pdl_interp.is_not_null %equivalence_yield : !pdl.operation -> ^bb422, ^bb1
     ^bb422:
       // create a new operation scf.yield to replace the equivalence.yield
-      %1014 = pdl_interp.get_operand 0 of %1013
-      %1015 = pdl_interp.create_operation "scf.yield"(%1014 : !pdl.value)
-      %1016 = pdl_interp_region.insert_op_into_region(%1015 : !pdl.operation) of %1022
-      %1017 = pdl_interp_region.delete_op_from_region(%1013 : !pdl.operation) of %1016
-      pdl_interp.check_result_count of %arg0 is 1 -> ^bb425, ^bb1
-    ^bb425:
-      %1018 = pdl_interp.get_result 0 of %arg0
-      %1019 = pdl_interp.get_value_type of %1018 : !pdl.type
-      %1020 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%1017 : !pdl_region.region) -> (%1019 : !pdl.type)
-      %1023 = ematch.dedup %1020
-      %1024 = pdl_interp_region.get_region 0 of %1023 : !pdl_region.region
-      ematch.dedup_region %1024
-      %1025 = pdl_interp.get_operands of %arg0 : !pdl.range<value>
-      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%1025, %100, %1024 : !pdl.range<value>, !pdl.operation, !pdl_region.region) -> ^bb424, ^bb1
-    ^bb424:
-      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %1023 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
+      %yield_operand = pdl_interp.get_operand 0 of %equivalence_yield
+      %scf_yield = pdl_interp.create_operation "scf.yield"(%yield_operand : !pdl.value)
+      %equivalence_region_v3 = pdl_interp_region.insert_op_into_region(%scf_yield : !pdl.operation) of %equivalence_region_v2
+      %equivalence_region_v4 = pdl_interp_region.delete_op_from_region(%equivalence_yield : !pdl.operation) of %equivalence_region_v3
+
+      // Create the execute_region where the function body will be executed
+      %result = pdl_interp.get_result 0 of %arg0
+      %type = pdl_interp.get_value_type of %result : !pdl.type
+      %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%equivalence_region_v3 : !pdl_region.region) -> (%type : !pdl.type)
+      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %execute_region : !pdl.operation, !pdl.operation) : benefit(2) -> ^bb1
     ^bb50:
       pdl_interp.check_operation_name of %arg0 is "math.exp" -> ^bb51, ^bb1
     ^bb51:
@@ -133,8 +132,9 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
 
     pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
+      %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
       pdl_interp.replace %arg0 with (%1 : !pdl.value)
+      ematch.dedup_region %inlined_ops
       pdl_interp.finalize
     }
 

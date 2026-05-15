@@ -46,6 +46,7 @@ class OperationInfo:
                 sum(hash(i) for i in self.op.properties.items()),
                 hash(self.op.result_types),
                 hash(self.op.operands),
+                hash(self.op.parent)
             )
         )
 
@@ -64,35 +65,6 @@ class OperationInfo:
             )
         )
 
-
-@dataclass
-class RegionInfo:
-    """
-    Boilerplate helper to use in KnownRegions cache.
-
-    This is to compare regions based on all operations they contain, in block order.
-    """
-
-    region: Region
-
-    def __hash__(self):
-        return sum(
-            hash(OperationInfo(op)) for block in self.region.blocks for op in block.ops
-        )
-
-    def __eq__(self, other: object):
-        return (
-            isinstance(other, RegionInfo)
-            and hash(self) == hash(other)
-            and all(
-                OperationInfo(s) == OperationInfo(o)
-                for s, o in zip(
-                    (op for block in self.region.blocks for op in block.ops),
-                    (op for block in other.region.blocks for op in block.ops),
-                    strict=True,
-                )
-            )
-        )
 
 _D = TypeVar("_D")
 
@@ -126,37 +98,6 @@ class KnownOps:
 
     def pop(self, k: Operation):
         return self._known_ops.pop(OperationInfo(k))
-
-
-class KnownRegions:
-    """
-    Cache dictionary for known regions used in CSE.
-    It quacks like a dict[Region, Region], but uses RegionInfo of a Region
-    as the actual key.
-    """
-
-    _known_regions: dict[RegionInfo, Region]
-
-    def __init__(self, known_regions: "KnownRegions | None" = None):
-        if known_regions is None:
-            self._known_regions = {}
-        else:
-            self._known_regions = dict(known_regions._known_regions)
-
-    def __getitem__(self, k: Region):
-        return self._known_regions[RegionInfo(k)]
-
-    def __setitem__(self, k: Region, v: Region):
-        self._known_regions[RegionInfo(k)] = v
-
-    def __contains__(self, k: Region):
-        return RegionInfo(k) in self._known_regions
-
-    def get(self, k: Region, default: _D = None) -> Region | _D:
-        return self._known_regions.get(RegionInfo(k), default)
-
-    def pop(self, k: Region):
-        return self._known_regions.pop(RegionInfo(k))
 
 
 def has_other_side_effecting_op_in_between(

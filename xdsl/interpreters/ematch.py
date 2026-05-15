@@ -13,7 +13,7 @@ from xdsl.interpreter import Interpreter, InterpreterFunctions, impl, register_i
 from xdsl.interpreters.pdl_interp import PDLInterpFunctions
 from xdsl.ir import Block, Operation, OpResult, SSAValue, Region
 from xdsl.rewriter import InsertPoint
-from xdsl.transforms.common_subexpression_elimination import KnownOps, KnownRegions, RegionInfo
+from xdsl.transforms.common_subexpression_elimination import KnownOps
 from xdsl.utils.disjoint_set import DisjointSet
 from xdsl.utils.exceptions import InterpretationError
 from xdsl.utils.hints import isa
@@ -28,8 +28,6 @@ class EmatchFunctions(InterpreterFunctions):
     """Used for hashconsing operations. When new operations are created, if they are identical to an existing operation,
     the existing operation is reused instead of creating a new one."""
 
-    known_regions: KnownRegions = field(default_factory=KnownRegions)
-    """Used ofr hashconsing blocks"""
 
     eclass_union_find: DisjointSet[equivalence.AnyClassOp] = field(
         default_factory=lambda: DisjointSet[equivalence.AnyClassOp]()
@@ -350,20 +348,23 @@ class EmatchFunctions(InterpreterFunctions):
             args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
         assert len(args) == 1
-        input_region = args[0]
+        inlined_ops = args[0]
 
-        for input_op in input_region:
+        rewriter = PDLInterpFunctions.get_rewriter(interpreter)
+
+        for input_op in inlined_ops:
 
             # Check if an equivalent operation exists in hashcons
             existing = self.known_ops.get(input_op)
 
             if existing is not None and existing is not input_op:
-                # Deduplicate: erase the new op and return existing
-                rewriter = PDLInterpFunctions.get_rewriter(interpreter)
-                rewriter.erase_op(input_op)
+                # Deduplicate: replace all uses of the new op with the existing op's results
+                # This safely updates the use-def chains before erasing input_op
+                rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
+            else:
+                # No duplicate found, insert into hashcons
+                self.known_ops[input_op] = input_op
 
-            # No duplicate found, insert into hashcons
-            self.known_ops[input_op] = input_op
         return ()
 
     @impl(ematch.DedupOp)

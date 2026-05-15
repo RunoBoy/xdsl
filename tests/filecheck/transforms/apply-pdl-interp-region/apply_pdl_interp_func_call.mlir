@@ -87,7 +87,7 @@ func.func @impl() -> i32 {
     pdl_interp.is_not_null %14 : !pdl_region.region -> ^bb16, ^bb1
   ^bb16:
     %caller_args = pdl_interp.get_operands of %arg0 : !pdl.range<value>
-    pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %7, %14 : !pdl.range<value>, !pdl.operation, !pdl_region.region) -> ^bb18, ^bb1
+    pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %14 : !pdl.range<value>, !pdl_region.region) -> ^bb18, ^bb1
   ^bb18:
     pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %13 : !pdl.operation, !pdl.operation) : benefit(1) -> ^bb1
    }

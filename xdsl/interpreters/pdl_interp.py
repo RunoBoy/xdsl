@@ -990,7 +990,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         caller_args = args[0]
         assert isinstance(caller_args, OpOperands)
 
-        region = args[2]
+        region = args[1]
         assert isinstance(region, Region)
 
         rewriter = self.get_rewriter(interpreter)

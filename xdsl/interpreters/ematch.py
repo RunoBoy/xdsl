@@ -380,22 +380,52 @@ class EmatchFunctions(InterpreterFunctions):
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
         for input_op in inlined_ops:
-            # Check if operation exists already
+            # FIX: Skip "Ghost" operations erased during inlining (e.g., scf.yield)
+            if input_op.parent is None:
+                continue
+
+            # --- PHASE 1: Handle E-Classes ---
+            if isinstance(input_op, equivalence.AnyClassOp):
+                try:
+                    self.eclass_union_find.find(input_op)
+                except KeyError:
+                    self.eclass_union_find.add(input_op)
+
+                merged = False
+                # Check 1: Does another e-class track the same operands?
+                for operand in input_op.operands:
+                    for use in list(operand.uses):
+                        if use.operation is not input_op and isinstance(use.operation, equivalence.AnyClassOp):
+                            self.eclass_union(interpreter, input_op, use.operation)
+                            merged = True
+                            break
+                    if merged:
+                        break
+
+                        # Check 2: Was this e-class yielded into an outer e-class? (Nested E-class fix)
+                if not merged:
+                    for use in list(input_op.result.uses):
+                        if isinstance(use.operation, equivalence.AnyClassOp) and use.operation is not input_op:
+                            self.eclass_union(interpreter, input_op, use.operation)
+                            break
+
+                continue
+
+            # --- PHASE 2: Handle Standard Operations ---
             existing = self.known_ops.get(input_op)
 
-            # Replace the operation with the existing one
             if existing is not None and existing is not input_op:
-                # Deduplicate: replace all uses of the new op with the existing op's results
-                # This safely updates the use-def chains before erasing input_op
+                for res_old, res_new in zip(input_op.results, existing.results):
+                    self.union_val(interpreter, res_old, res_new)
+
                 rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
 
-            # If it doesn't exist, add it to the hashcons
+                for res_new in existing.results:
+                    for use in list(res_new.uses):
+                        if isinstance(use.operation, equivalence.AnyClassOp):
+                            unique_ops = list(dict.fromkeys(use.operation.operands))
+                            use.operation.operands = tuple(unique_ops)
             else:
-                # If the operation does not exist, it is either an equivalence class, which means that the classes need
-                # to be merged, or it's a regular operation, which means it needs to be added to the hashcons and the
-                # uses updated
-                if isinstance(input_op, equivalence.AnyClassOp):
-                    self.worklist.append(input_op)
                 self.known_ops[input_op] = input_op
 
         return ()

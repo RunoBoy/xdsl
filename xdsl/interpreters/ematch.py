@@ -248,50 +248,66 @@ class EmatchFunctions(InterpreterFunctions):
         return eclass_op
 
     def eclass_union(
-        self,
-        interpreter: Interpreter,
-        a: equivalence.AnyClassOp,
-        b: equivalence.AnyClassOp,
+            self,
+            interpreter: Interpreter,
+            a: equivalence.AnyClassOp,
+            b: equivalence.AnyClassOp,
     ) -> bool:
-        """Unions two eclasses, merging their operands and results.
-        Returns True if the eclasses were merged, False if they were already the same."""
+        """Unions two eclasses, ensuring the one highest in the block/region scope is preserved."""
         a = self.eclass_union_find.find(a)
         b = self.eclass_union_find.find(b)
 
         if a == b:
             return False
 
-        # Meet the analysis states of the two e-classes
+        # Meet the dataflow analysis states of the two e-classes
         for analysis in self.analyses:
             a_lattice = analysis.get_lattice_element(a.result)
             b_lattice = analysis.get_lattice_element(b.result)
             a_lattice.meet(b_lattice)
 
+        # Helper logic to compute structural nesting depth
+        def get_scope_depth(op: Operation) -> int:
+            depth = 0
+            curr = op.parent_op()
+            while curr is not None:
+                depth += 1
+                curr = curr.parent_op()
+            return depth
+
+        # Choose the survivor based on type and scope rules
         if isinstance(a, equivalence.ConstantClassOp):
             if isinstance(b, equivalence.ConstantClassOp):
-                assert a.value == b.value, (
-                    "Trying to union two different constant eclasses.",
-                )
+                assert a.value == b.value, "Trying to union two different constant eclasses."
             to_keep, to_replace = a, b
             self.eclass_union_find.union_left(to_keep, to_replace)
         elif isinstance(b, equivalence.ConstantClassOp):
             to_keep, to_replace = b, a
             self.eclass_union_find.union_left(to_keep, to_replace)
         else:
-            self.eclass_union_find.union(
-                a,
-                b,
-            )
-            to_keep = self.eclass_union_find.find(a)
-            to_replace = b if to_keep is a else a
-        # Operands need to be deduplicated because it can happen the same operand was
-        # used by different parent eclasses after their children were merged:
+            # FIX: Compare lexical nesting depths. Lower depth = higher in structural scope.
+            depth_a = get_scope_depth(a)
+            depth_b = get_scope_depth(b)
+
+            if depth_a == 0:
+                to_keep, to_replace = b, a
+            elif depth_b == 0:
+                to_keep, to_replace = a, b
+            else:
+                if depth_a <= depth_b:
+                    to_keep, to_replace = a, b
+                else:
+                    to_keep, to_replace = b, a
+
+            # Use union_left to strictly preserve the chosen representative
+            self.eclass_union_find.union_left(to_keep, to_replace)
+
+        # Merge operands and clean
         new_operands = OrderedSet(to_keep.operands)
         new_operands.update(to_replace.operands)
 
         clean_operands = OrderedSet()
         for op in new_operands:
-            # If the operand is the result of ANY equivalence.class, discard it!
             if isinstance(op, OpResult) and isinstance(op.owner, equivalence.AnyClassOp):
                 continue
             clean_operands.add(op)
@@ -299,8 +315,6 @@ class EmatchFunctions(InterpreterFunctions):
         to_keep.operands = tuple(clean_operands)
 
         for use in to_replace.result.uses:
-            # uses are removed from the hashcons before the replacement is carried out.
-            # (because the replacement changes the operations which means we cannot find them in the hashcons anymore)
             if use.operation in self.known_ops:
                 self.known_ops.pop(use.operation)
 

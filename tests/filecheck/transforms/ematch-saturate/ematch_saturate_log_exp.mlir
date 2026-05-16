@@ -129,28 +129,6 @@ func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
    }
 
   builtin.module @rewriters {
-    pdl_interp.func @if_true_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
-      %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
-      pdl_interp.finalize
-    }
-
-     pdl_interp.func @if_false_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
-      %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
-      pdl_interp.finalize
-    }
-
      pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)

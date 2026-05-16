@@ -912,17 +912,14 @@ class PDLInterpFunctions(InterpreterFunctions):
             yield_op = new_region.ops.last
         assert isinstance(yield_op, YieldOp)
 
-
         # Get the result value from the yield before inlining
         results_of_yield = yield_op.operands
 
         # Inline the block's operations before the input operation
         rewriter = self.get_rewriter(interpreter)
-        ops = list(region.blocks[0].walk())[:-1]
 
-        # for op in ops[:-1]:
-        #     op.parent = None
-        #     rewriter.insert_op(op, InsertPoint.before(input_op))
+        # FIX: Use .ops instead of .walk() to avoid flattening nested regions
+        ops = list(region.blocks[0].ops)[:-1]
 
         rewriter.inline_block(region.blocks[0], InsertPoint.before(input_op))
 
@@ -930,7 +927,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         rewriter.erase_op(yield_op, safe_erase=False)
 
         # Return the value that was yielded (now defined by an inlined op)
-        return (results_of_yield[0],ops)
+        return (results_of_yield[0], ops)
 
     @impl_external("get_function_call")
     def run_get_function_call_op(

@@ -92,9 +92,7 @@ class EmatchFunctions(InterpreterFunctions):
         assert isinstance(input_region, Region)
 
         for op in input_region.walk():
-            if not isinstance(op, equivalence.AnyClassOp):
-                self.known_ops[op] = op
-            else:
+            if isinstance(op, equivalence.AnyClassOp):
                 self.eclass_union_find.add(op)
 
         return ()
@@ -376,11 +374,13 @@ class EmatchFunctions(InterpreterFunctions):
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         inlined_ops = args[0]
-
+        ops_added = []
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
+        # PROTECT TERMINATORS (Make sure this is imported!)
+        from xdsl.traits import IsTerminator
+
         for input_op in inlined_ops:
-            # FIX: Skip "Ghost" operations erased during inlining (e.g., scf.yield)
             if input_op.parent is None:
                 continue
 
@@ -392,7 +392,6 @@ class EmatchFunctions(InterpreterFunctions):
                     self.eclass_union_find.add(input_op)
 
                 merged = False
-                # Check 1: Does another e-class track the same operands?
                 for operand in input_op.operands:
                     for use in list(operand.uses):
                         if use.operation is not input_op and isinstance(use.operation, equivalence.AnyClassOp):
@@ -402,16 +401,17 @@ class EmatchFunctions(InterpreterFunctions):
                     if merged:
                         break
 
-                        # Check 2: Was this e-class yielded into an outer e-class? (Nested E-class fix)
                 if not merged:
                     for use in list(input_op.result.uses):
                         if isinstance(use.operation, equivalence.AnyClassOp) and use.operation is not input_op:
                             self.eclass_union(interpreter, input_op, use.operation)
                             break
-
                 continue
 
             # --- PHASE 2: Handle Standard Operations ---
+            if input_op.has_trait(IsTerminator):
+                continue
+
             existing = self.known_ops.get(input_op)
 
             if existing is not None and existing is not input_op:
@@ -427,8 +427,12 @@ class EmatchFunctions(InterpreterFunctions):
                             use.operation.operands = tuple(unique_ops)
             else:
                 self.known_ops[input_op] = input_op
+                ops_added.append(input_op)
 
-        return ()
+        # EXACTLY 0 means all computations were perfectly deduplicated
+        if len(ops_added) == 0:
+            return (None,)
+        return (ops_added,)
 
     @impl(ematch.DedupOp)
     def run_dedup(
@@ -582,7 +586,6 @@ class EmatchFunctions(InterpreterFunctions):
                         break  # Only need to add to worklist once per operation
 
     def rebuild(self, interpreter: Interpreter):
-        test = ""
         while self.worklist:
             todo = OrderedSet(self.eclass_union_find.find(c) for c in self.worklist)
             self.worklist.clear()

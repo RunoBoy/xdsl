@@ -910,7 +910,8 @@ class PDLInterpFunctions(InterpreterFunctions):
             yield_op = new_region.last_block.last_op
         else:
             yield_op = new_region.ops.last
-        assert yield_op is not None
+        assert isinstance(yield_op, YieldOp)
+
 
         # Get the result value from the yield before inlining
         results_of_yield = yield_op.operands
@@ -1003,6 +1004,6 @@ class PDLInterpFunctions(InterpreterFunctions):
         cloned_entry_block = region.blocks[0]
 
         for cloned_arg, caller_arg in zip(cloned_entry_block.args, caller_args):
-            rewriter.replace_all_uses_with(cloned_arg, caller_arg)
+            rewriter.replace_all_uses_with(cloned_arg, caller_arg, handle_modification=False)
 
         return True, tuple([])

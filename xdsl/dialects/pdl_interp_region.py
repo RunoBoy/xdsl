@@ -137,11 +137,11 @@ class CreateRegionOp(IRDLOperation):
 @irdl_op_definition
 class DebugPrintOp(IRDLOperation):
     name = "pdl_interp_region.debug_print"
-    message = prop_def(StringAttr)
+    message = prop_def(StringAttr | ValueType | OperationType | AttributeType)
 
     assembly_format = "$message attr-dict"
 
-    def __init__(self, message: str | StringAttr):
+    def __init__(self, message: str | StringAttr | ValueType | OperationType | AttributeType):
         if isinstance(message, str):
             message = StringAttr(message)
         super().__init__(properties={"message": message})

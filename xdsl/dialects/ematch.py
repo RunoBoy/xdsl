@@ -169,11 +169,14 @@ class DedupRegionOp(IRDLOperation):
     name = "ematch.dedup_region"
     input_region = operand_def(RangeType[OperationType])
 
+    result = result_def(RangeType[OperationType])
+
     assembly_format = "`of ` $input_region attr-dict"
 
     def __init__(self, input_region: SSAValue) -> None:
         super().__init__(
-            operands=[input_region]
+            operands=[input_region],
+            result_types=[RangeType(OperationType())]
         )
 
 

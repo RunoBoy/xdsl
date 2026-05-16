@@ -46,7 +46,6 @@ class OperationInfo:
                 sum(hash(i) for i in self.op.properties.items()),
                 hash(self.op.result_types),
                 hash(self.op.operands),
-                hash(self.op.parent)
             )
         )
 

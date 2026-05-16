@@ -170,7 +170,7 @@ class PatternRewriter(Builder, PatternRewriterListener):
         Rewriter.erase_op(op, safe_erase=safe_erase)
 
     def replace_all_uses_with(
-        self, from_value: SSAValue, to_value: SSAValue | None, safe_erase: bool = True
+        self, from_value: SSAValue, to_value: SSAValue | None, safe_erase: bool = True, handle_modification: bool = True
     ):
         """Replace all uses of `old` with `new`."""
         if from_value is to_value:
@@ -183,10 +183,11 @@ class PatternRewriter(Builder, PatternRewriterListener):
         else:
             from_value.replace_all_uses_with(to_value)
 
-        if modified_ops:
-            self.has_done_action = True
-        for op in modified_ops:
-            self.handle_operation_modification(op)
+        if handle_modification:
+            if modified_ops:
+                self.has_done_action = True
+            for op in modified_ops:
+                self.handle_operation_modification(op)
 
     def replace_uses_with_if(
         self,

@@ -19,13 +19,7 @@
 // CHECK-NEXT:       %x = func.call @g() : () -> i32
 // CHECK-NEXT:       %a = equivalence.class %x : i32
 // CHECK-NEXT:       %b = func.call @h(%a) : (i32) -> i32
-// CHECK-NEXT:       %r = equivalence.class %r_1, %b, %0 : i32
-// CHECK-NEXT:       %0 = scf.execute_region -> (i32) {
-// CHECK-NEXT:         %x_1 = func.call @g() : () -> i32
-// CHECK-NEXT:         %a_1 = equivalence.class %x_1 : i32
-// CHECK-NEXT:         %b_1 = func.call @h(%a_1) : (i32) -> i32
-// CHECK-NEXT:         scf.yield %b_1 : i32
-// CHECK-NEXT:       }
+// CHECK-NEXT:       %r = equivalence.class %r_1, %b : i32
 // CHECK-NEXT:       %r_1 = func.call @f() : () -> i32
 // CHECK-NEXT:       equivalence.yield %a : i32
 // CHECK-NEXT:     }
@@ -174,14 +168,19 @@ func.func @main() -> i32 {
     }
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
-      %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)
       ematch.add_cloned_eclasses of %region
+      %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
+      %inlined_ops = ematch.dedup_region of %region_iterator
+      pdl_interp.is_not_null %inlined_ops : !pdl.range<operation> -> ^bb0, ^bb1
+    ^bb0:
+      %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)
       %0 = pdl_interp.get_result 0 of %execute_region
       %1 = ematch.get_class_result %0
       %2 = pdl_interp.create_range %1 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %2 : !pdl.range<value>
-      %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
-      ematch.dedup_region of %region_iterator
+      pdl_interp.finalize
+    ^bb1:
+      // Delete the execute_region
       pdl_interp.finalize
     }
 

@@ -1,3 +1,38 @@
+// RUN: xdsl-opt %s -p ematch-saturate | filecheck ematch_saturate_inv_filecheck.mlir
+
+// This file aims to show that a function can contain an E-class, so when inlining, the rebuild step needs to
+// union these E-classes.
+
+// CHECK: func.func private @g() -> i32
+// CHECK-NEXT:   func.func private @h(i32) -> i32
+// CHECK-NEXT:   func.func @f() -> i32 {
+// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
+// CHECK-NEXT:       %x = func.call @g() : () -> i32
+// CHECK-NEXT:       %a = equivalence.class %x : i32
+// CHECK-NEXT:       %b = func.call @h(%a) : (i32) -> i32
+// CHECK-NEXT:       equivalence.yield %b : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %res : i32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.func @main() -> i32 {
+// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
+// CHECK-NEXT:       %x = func.call @g() : () -> i32
+// CHECK-NEXT:       %a = equivalence.class %x : i32
+// CHECK-NEXT:       %b = func.call @h(%a) : (i32) -> i32
+// CHECK-NEXT:       %r = equivalence.class %r_1, %b, %0 : i32
+// CHECK-NEXT:       %0 = scf.execute_region -> (i32) {
+// CHECK-NEXT:         %x_1 = func.call @g() : () -> i32
+// CHECK-NEXT:         %a_1 = equivalence.class %x_1 : i32
+// CHECK-NEXT:         %b_1 = func.call @h(%a_1) : (i32) -> i32
+// CHECK-NEXT:         scf.yield %b_1 : i32
+// CHECK-NEXT:       }
+// CHECK-NEXT:       %r_1 = func.call @f() : () -> i32
+// CHECK-NEXT:       equivalence.yield %a : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %res : i32
+// CHECK-NEXT:   }
+
+
 func.func private @g() -> i32
 func.func private @h(%arg0: i32) -> i32
 
@@ -110,31 +145,32 @@ func.func @main() -> i32 {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
       %2 = pdl_interp.get_defining_op of %1 : !pdl.value
-      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb1, ^bb2
-      ^bb1:
-          // 1. Capture the yielded class BEFORE anything is erased
-          %yielded_class_val = ematch.get_class_result %1
-          %yielded_class_range = pdl_interp.create_range %yielded_class_val : !pdl.value
+      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb0, ^bb1
+    // If an E-class is returned, we union the classes with the original execute_region E-class
+    ^bb0:
+      // Extract the E-class of the value that was just yielded by the inlined region
+      %new_eclass_val = ematch.get_class_result %1
+      %new_eclass_range = pdl_interp.create_range %new_eclass_val : !pdl.value
 
-          // 2. Capture the target class (%y) using get_defining_op
-          %arg0_res = pdl_interp.get_result 0 of %arg0
-          %y_val = ematch.get_class_result %arg0_res
-          %y_op = pdl_interp.get_defining_op of %y_val : !pdl.value
+      // Grab the result of the original execute_region
+      %original_res = pdl_interp.get_result 0 of %arg0
+      %original_eclass_val = ematch.get_class_result %original_res
+      // Now grab the E-class belonging to the original execute_region
+      %original_eclass_op = pdl_interp.get_defining_op of %original_eclass_val : !pdl.value
 
-          // 3. Forward uses safely so we don't create zombie pointers
-          pdl_interp.replace %arg0 with (%1 : !pdl.value)
+      // Replace uses of the old operation with the newly inlined value
+      pdl_interp.replace %arg0 with (%1 : !pdl.value)
 
-          // 4. Hashcons the region (Phase 1 of your FSM)
-          ematch.dedup_region %inlined_ops
+      // Deduplicate the region and union the E-classes
+      ematch.dedup_region %inlined_ops
+      ematch.union %original_eclass_op : !pdl.operation, %new_eclass_range : !pdl.range<value>
 
-          // 5. Link the E-classes (Phase 2 of your FSM)
-          ematch.union %y_op : !pdl.operation, %yielded_class_range : !pdl.range<value>
-
-          pdl_interp.finalize
-       ^bb2:
-          pdl_interp.replace %arg0 with (%1 : !pdl.value)
-          ematch.dedup_region %inlined_ops
-          pdl_interp.finalize
+      pdl_interp.finalize
+    // If a regular operation is returned, we only deduplicate the region
+    ^bb1:
+      pdl_interp.replace %arg0 with (%1 : !pdl.value)
+      ematch.dedup_region of %inlined_ops
+      pdl_interp.finalize
     }
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
@@ -144,6 +180,8 @@ func.func @main() -> i32 {
       %1 = ematch.get_class_result %0
       %2 = pdl_interp.create_range %1 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %2 : !pdl.range<value>
+      %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
+      ematch.dedup_region of %region_iterator
       pdl_interp.finalize
     }
 

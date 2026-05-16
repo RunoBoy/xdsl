@@ -1,3 +1,10 @@
+// RUN: xdsl-opt %s -p ematch-saturate | filecheck ematch_saturate_inv_filecheck.mlir
+
+// This file aims to show that by having access to a function at different levels, by choosing a representation where
+// the function is not completely inlined, we can rewrite it to a better version. For example, the rewrite rule to the
+// solve function only triggers when @matrix_inverse_4x4 is present. So if we don't inline enough or if we inline too
+// much, the rewrite rule doesn't trigger.
+
  func.func @get_inv(%arg0: tensor<4x4xf32>) -> tensor<4x4xf32> {
     %0 = equivalence.graph : () -> (tensor<4x4xf32>) {
       %1 = func.call @matrix_inverse_4x4(%arg0) : (tensor<4x4xf32>) -> tensor<4x4xf32>
@@ -97,152 +104,139 @@
     %0 = equivalence.graph : () -> (tensor<4x4xf32>) {
       %1 = func.call @get_inv(%arg0) : (tensor<4x4xf32>) -> tensor<4x4xf32>
       %2 = func.call @dot(%1, %arg1) : (tensor<4x4xf32>, tensor<4x4xf32>) -> tensor<4x4xf32>
-
-      // Note: Preserving your original logic here which yielded %1 (the inverse).
-      // If you meant to yield the result of the dot product, change to `%2`.
       equivalence.yield %2 : tensor<4x4xf32>
     }
     return %0 : tensor<4x4xf32>
   }
 
-pdl_interp.func @matcher(%arg0 : !pdl.operation) {
-      pdl_interp.check_operation_name of %arg0 is "scf.execute_region" -> ^bb31, ^bb40
-    ^bb1:
-      pdl_interp.finalize
-    ^bb31:
-      pdl_interp.record_match @rewriters::@execute_region_rewriter(%arg0 : !pdl.operation) : benefit(1) -> ^bb1
-    ^bb40:
-      pdl_interp.check_operation_name of %arg0 is "func.call" -> ^bb41, ^bb1
-    ^bb41:
-      %function_call = pdl_interp.apply_constraint "get_function_call"(%arg0 : !pdl.operation) : !pdl.operation -> ^bb39, ^bb1
-    ^bb39:
-      %visibility = pdl_interp.get_attribute "sym_visibility" of %function_call
-      %private = pdl_interp.create_attribute "private"
-      pdl_interp.are_equal %private, %visibility : !pdl.attribute -> ^bb401, ^bb42
-    ^bb401:
-      %name = pdl_interp.get_attribute "sym_name" of %function_call
-      %dot = pdl_interp.create_attribute "dot"
-      pdl_interp.are_equal %name, %dot : !pdl.attribute -> ^bb50, ^bb1
-    ^bb42:
-      // get region of function (function body)
-      %function_call_original_region = pdl_interp_region.get_region 0 of %function_call : !pdl_region.region
-      %function_call_new_region = pdl_interp_region.clone_region(%function_call_original_region : !pdl_region.region)
-      // Replace the function arguments with the SSA values from the caller body
-      %caller_args = pdl_interp.get_operands of %arg0 : !pdl.range<value>
-      pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %function_call_new_region : !pdl.range<value>, !pdl_region.region) -> ^bb424, ^bb1
-    ^bb424:
-      // check if an equivalence graph is present
-      %equivalence_graph = pdl_interp_region.get_operation() called "equivalence.graph" 0 of %function_call_new_region
-      pdl_interp.is_not_null %equivalence_graph : !pdl.operation -> ^bb421, ^bb1
-
-    ^bb421: // equivalence graph found
-      // extract the equivalence graph body
-      %equivalence_region = pdl_interp_region.get_region 0 of %equivalence_graph : !pdl_region.region
-      %equivalence_region_v2 = pdl_interp_region.clone_region(%equivalence_region : !pdl_region.region)
-      // extract the equivalence yield
-      %equivalence_yield = pdl_interp_region.get_operation() called "equivalence.yield" 0 of %equivalence_region_v2
-      pdl_interp.is_not_null %equivalence_yield : !pdl.operation -> ^bb422, ^bb1
-    ^bb422:
-      // create a new operation scf.yield to replace the equivalence.yield
-      %yield_operand = pdl_interp.get_operand 0 of %equivalence_yield
-      %scf_yield = pdl_interp.create_operation "scf.yield"(%yield_operand : !pdl.value)
-      %equivalence_region_v3 = pdl_interp_region.insert_op_into_region(%scf_yield : !pdl.operation) of %equivalence_region_v2
-      %equivalence_region_v4 = pdl_interp_region.delete_op_from_region(%equivalence_yield : !pdl.operation) of %equivalence_region_v3
-
-      // Create the execute_region where the function body will be executed
-      %result = pdl_interp.get_result 0 of %arg0
-      %type = pdl_interp.get_value_type of %result : !pdl.type
-      pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %equivalence_region_v4, %type : !pdl.operation, !pdl_region.region, !pdl.type) : benefit(2) -> ^bb1
-    ^bb50:
-      %op1 = pdl_interp.get_operand 0 of %arg0
-      %op1_eclass = ematch.get_class_vals %op1
-      pdl_interp.foreach %op1_node : !pdl.value in %op1_eclass {
-        %op1_op = pdl_interp.get_defining_op of %op1_node : !pdl.value
-        pdl_interp.is_not_null %op1_op : !pdl.operation -> ^bb51, ^bb52
-        ^bb52:
-          pdl_interp.continue
-        ^bb51:
-
-          pdl_interp.check_operation_name of %op1_op is "func.call" -> ^bb53, ^bb52
-        ^bb53:
-          %function_call_2 = pdl_interp.apply_constraint "get_function_call"(%op1_op : !pdl.operation) : !pdl.operation -> ^bb54, ^bb52
-        ^bb54:
-          %potential_name = pdl_interp.get_attribute "sym_name" of %function_call_2
-          %matrix_inverse = pdl_interp.create_attribute "matrix_inverse_4x4"
-          pdl_interp.are_equal %potential_name, %matrix_inverse : !pdl.attribute -> ^bb55, ^bb52
-        ^bb55:
-          %op2 = pdl_interp.get_operand 1 of %arg0
-          %op2_type = pdl_interp.get_value_type of %op2 : !pdl.type
-          pdl_interp.check_type %op2_type is tensor<4x4xf32> -> ^bb56, ^bb52
-        ^bb56:
-        // Extract the original matrix A (operand 0 of matrix_inverse_4x4)
-          %matrix_a = pdl_interp.get_operand 0 of %op1_op
-
-          // Get the result type of the original dot(inv(A), B) call
-          %dot_res = pdl_interp.get_result 0 of %arg0
-          %dot_res_type = pdl_interp.get_value_type of %dot_res : !pdl.type
-
-          // Record the match and pass A, B, and the return type to the rewriter
-          // NOTE: We branch back to ^bb52 to continue checking other e-nodes in the loop!
-          pdl_interp.record_match @rewriters::@solve(%arg0, %matrix_a, %op2, %dot_res_type : !pdl.operation, !pdl.value, !pdl.value, !pdl.type) : benefit(2) -> ^bb52
-      } -> ^bb1
-   }
-
+pdl_interp.func @matcher(%arg0: !pdl.operation) {
+    pdl_interp.check_operation_name of %arg0 is "scf.execute_region" -> ^bb0, ^bb1
+  ^bb2:
+    pdl_interp.finalize
+  ^bb0:
+    pdl_interp.record_match @rewriters::@execute_region_rewriter(%arg0 : !pdl.operation) : benefit(1), loc([]) -> ^bb2
+  ^bb1:
+    pdl_interp.check_operation_name of %arg0 is "func.call" -> ^bb3, ^bb2
+  ^bb3:
+    %function_call = pdl_interp.apply_constraint "get_function_call"(%arg0 : !pdl.operation) : !pdl.operation -> ^bb4, ^bb2
+  ^bb4:
+    // Check if function is set to private
+    %visibility = pdl_interp.get_attribute "sym_visibility" of %function_call
+    %private = pdl_interp.create_attribute "private"
+    pdl_interp.are_equal %private, %visibility : !pdl.attribute -> ^bb5, ^bb6
+  ^bb5:
+    %name = pdl_interp.get_attribute "sym_name" of %function_call
+    %dot = pdl_interp.create_attribute "dot"
+    pdl_interp.are_equal %name, %dot : !pdl.attribute -> ^bb7, ^bb2
+  ^bb6:
+    // Get region of the function call
+    %function_call_original_region = pdl_interp_region.get_region 0 of %function_call : !pdl_region.region
+    // Clone this region before applying changes, or we change the original function
+    %function_call_new_region = pdl_interp_region.clone_region(%function_call_original_region : !pdl_region.region)
+    // The arguments of the function need to be replaced with the values in the body of the caller
+    %caller_args = pdl_interp.get_operands of %arg0 : !pdl.range<value>
+    pdl_interp.apply_constraint "replace_func_args_with_correct_definitions"(%caller_args, %function_call_new_region : !pdl.range<value>, !pdl_region.region) -> ^bb8, ^bb2
+  ^bb8:
+    // Get the egraph region of the cloned region
+    %equivalence_graph = pdl_interp_region.get_operation() called "equivalence.graph"  0 of %function_call_new_region
+    pdl_interp.is_not_null %equivalence_graph : !pdl.operation -> ^bb9, ^bb2
+  ^bb9:
+    // Extract the egraph region out of the previously cloned function
+    %equivalence_region = pdl_interp_region.get_region 0 of %equivalence_graph : !pdl_region.region
+    // Since the egraph technically belongs to the region above, we clone this again such that it has no parent and we
+    // can use this to create the new execute_region operation
+    %equivalence_region_v2 = pdl_interp_region.clone_region(%equivalence_region : !pdl_region.region)
+    %equivalence_yield = pdl_interp_region.get_operation() called "equivalence.yield"  0 of %equivalence_region_v2
+    pdl_interp.is_not_null %equivalence_yield : !pdl.operation -> ^bb10, ^bb2
+  ^bb10:
+    // Replace the equivalence.yield with the correct scf.yield to create the execute_region
+    %yield_operand = pdl_interp.get_operand 0 of %equivalence_yield
+    %scf_yield = pdl_interp.create_operation "scf.yield"(%yield_operand : !pdl.value)
+    %equivalence_region_v3 = pdl_interp_region.insert_op_into_region(%scf_yield : !pdl.operation) of %equivalence_region_v2
+    %equivalence_region_v4 = pdl_interp_region.delete_op_from_region(%equivalence_yield : !pdl.operation) of %equivalence_region_v3
+    %result = pdl_interp.get_result 0 of %arg0
+    %type = pdl_interp.get_value_type of %result : !pdl.type
+    pdl_interp.record_match @rewriters::@func_call_rewriter(%arg0, %equivalence_region_v4, %type : !pdl.operation, !pdl_region.region, !pdl.type) : benefit(2), loc([]) -> ^bb2
+  ^bb7:
+    %op1 = pdl_interp.get_operand 0 of %arg0
+    %op1_eclass = ematch.get_class_vals %op1
+    pdl_interp.foreach %op1_node : !pdl.value in %op1_eclass {
+      %op1_op = pdl_interp.get_defining_op of %op1_node : !pdl.value
+      pdl_interp.is_not_null %op1_op : !pdl.operation -> ^bb11, ^bb12
+    ^bb12:
+      pdl_interp.continue
+    ^bb11:
+      pdl_interp.check_operation_name of %op1_op is "func.call" -> ^bb13, ^bb12
+    ^bb13:
+      %function_call_1 = pdl_interp.apply_constraint "get_function_call"(%op1_op : !pdl.operation) : !pdl.operation -> ^bb14, ^bb12
+    ^bb14:
+      %potential_name = pdl_interp.get_attribute "sym_name" of %function_call_1
+      %matrix_inverse = pdl_interp.create_attribute "matrix_inverse_4x4"
+      pdl_interp.are_equal %potential_name, %matrix_inverse : !pdl.attribute -> ^bb15, ^bb12
+    ^bb15:
+      %op2 = pdl_interp.get_operand 1 of %arg0
+      %op2_type = pdl_interp.get_value_type of %op2 : !pdl.type
+      pdl_interp.check_type %op2_type is tensor<4x4xf32> -> ^bb16, ^bb12
+    ^bb16:
+      %matrix_a = pdl_interp.get_operand 0 of %op1_op
+      %dot_res = pdl_interp.get_result 0 of %arg0
+      %dot_res_type = pdl_interp.get_value_type of %dot_res : !pdl.type
+      pdl_interp.record_match @rewriters::@solve(%arg0, %matrix_a, %op2, %dot_res_type : !pdl.operation, !pdl.value, !pdl.value, !pdl.type) : benefit(2), loc([]) -> ^bb12
+    } -> ^bb2
+  }
   builtin.module @rewriters {
-    pdl_interp.func @if_true_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
+    pdl_interp.func @if_true_rewriter(%arg0: !pdl.operation, %arg1: !pdl.type) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
+      %2 = ematch.dedup %1
+      %3 = pdl_interp.get_result 0 of %2
+      %4 = ematch.get_class_result %3
+      %5 = pdl_interp.create_range %4 : !pdl.value
+      ematch.union %arg0 : !pdl.operation, %5 : !pdl.range<value>
       pdl_interp.finalize
     }
-
-     pdl_interp.func @if_false_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
+    pdl_interp.func @if_false_rewriter(%arg0: !pdl.operation, %arg1: !pdl.type) {
       %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
       %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
+      %2 = ematch.dedup %1
+      %3 = pdl_interp.get_result 0 of %2
+      %4 = ematch.get_class_result %3
+      %5 = pdl_interp.create_range %4 : !pdl.value
+      ematch.union %arg0 : !pdl.operation, %5 : !pdl.range<value>
       pdl_interp.finalize
     }
-
-     pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
+    pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
       %2 = pdl_interp.get_defining_op of %1 : !pdl.value
-      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb1, ^bb2
-      ^bb1:
-          // 1. Capture the yielded class BEFORE anything is erased
-          %yielded_class_val = ematch.get_class_result %1
-          %yielded_class_range = pdl_interp.create_range %yielded_class_val : !pdl.value
+      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb0, ^bb1
+    // If an E-class is returned, we union the classes with the original execute_region E-class
+    ^bb0:
+      // Extract the E-class of the value that was just yielded by the inlined region
+      %new_eclass_val = ematch.get_class_result %1
+      %new_eclass_range = pdl_interp.create_range %new_eclass_val : !pdl.value
 
-          // 2. Capture the target class (%y) using get_defining_op
-          %arg0_res = pdl_interp.get_result 0 of %arg0
-          %y_val = ematch.get_class_result %arg0_res
-          %y_op = pdl_interp.get_defining_op of %y_val : !pdl.value
+      // Grab the result of the original execute_region
+      %original_res = pdl_interp.get_result 0 of %arg0
+      %original_eclass_val = ematch.get_class_result %original_res
+      // Now grab the E-class belonging to the original execute_region
+      %original_eclass_op = pdl_interp.get_defining_op of %original_eclass_val : !pdl.value
 
-          // 3. Forward uses safely so we don't create zombie pointers
-          pdl_interp.replace %arg0 with (%1 : !pdl.value)
+      // Replace uses of the old operation with the newly inlined value
+      pdl_interp.replace %arg0 with (%1 : !pdl.value)
 
-          // 4. Hashcons the region (Phase 1 of your FSM)
-          ematch.dedup_region %inlined_ops
+      // Deduplicate the region and union the E-classes
+      ematch.dedup_region %inlined_ops
+      ematch.union %original_eclass_op : !pdl.operation, %new_eclass_range : !pdl.range<value>
 
-          // 5. Link the E-classes (Phase 2 of your FSM)
-          ematch.union %y_op : !pdl.operation, %yielded_class_range : !pdl.range<value>
-
-          pdl_interp.finalize
-       ^bb2:
-          pdl_interp.replace %arg0 with (%1 : !pdl.value)
-          ematch.dedup_region %inlined_ops
-          pdl_interp.finalize
+      pdl_interp.finalize
+    // If a regular operation is returned, we only deduplicate the region
+    ^bb1:
+      pdl_interp.replace %arg0 with (%1 : !pdl.value)
+      ematch.dedup_region of %inlined_ops
+      pdl_interp.finalize
     }
-
-    pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
+    pdl_interp.func @func_call_rewriter(%arg0: !pdl.operation, %region: !pdl_region.region, %type: !pdl.type) {
       %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)
       ematch.add_cloned_eclasses of %region
       %0 = pdl_interp.get_result 0 of %execute_region
@@ -251,30 +245,14 @@ pdl_interp.func @matcher(%arg0 : !pdl.operation) {
       ematch.union %arg0 : !pdl.operation, %2 : !pdl.range<value>
       pdl_interp.finalize
     }
-
-    pdl_interp.func @solve(%arg0 : !pdl.operation, %matrix_a : !pdl.value, %matrix_b : !pdl.value, %res_type : !pdl.type) {
-      // 1. Create the @solve symbol attribute
-      %callee = "pdl_interp.create_attribute"() <{value = @solve}> : () -> !pdl.attribute
-
-      // 2. Create the `func.call @solve(A, B)` operation
-      // We pass 2 operands, 1 attribute, and 1 result type -> operandSegmentSizes: 2, 1, 1
-      %new_call = "pdl_interp.create_operation"(%matrix_a, %matrix_b, %callee, %res_type) <{
-          name = "func.call",
-          inputAttributeNames = ["callee"],
-          operandSegmentSizes = array<i32: 2, 1, 1>
-      }> : (!pdl.value, !pdl.value, !pdl.attribute, !pdl.type) -> !pdl.operation
-
-      // 3. Deduplicate the new operation in the Hashcons / E-Graph
+    pdl_interp.func @solve(%arg0: !pdl.operation, %matrix_a: !pdl.value, %matrix_b: !pdl.value, %res_type: !pdl.type) {
+      %callee = pdl_interp.create_attribute @solve
+      %new_call = pdl_interp.create_operation "func.call"(%matrix_a, %matrix_b : !pdl.value, !pdl.value) {"callee" = %callee} -> (%res_type : !pdl.type)
       %dedup_call = ematch.dedup %new_call
-
-      // 4. Extract the result and fetch its corresponding E-class
       %new_res = pdl_interp.get_result 0 of %dedup_call
       %eclass_res = ematch.get_class_result %new_res
       %res_range = pdl_interp.create_range %eclass_res : !pdl.value
-
-      // 5. Union the original `dot` call with our new `solve` call
       ematch.union %arg0 : !pdl.operation, %res_range : !pdl.range<value>
-
       pdl_interp.finalize
     }
   }

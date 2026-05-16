@@ -3,7 +3,7 @@
 // This file aims to show that a function can return an E-class, so instead of completely inlining, we need to
 // union these E-classes.
 
-// CHECK:  func.func private @g() -> i32
+// CHECK:func.func private @g() -> i32
 // CHECK-NEXT:  func.func @f() -> i32 {
 // CHECK-NEXT:    %res = equivalence.graph : () -> i32 {
 // CHECK-NEXT:      %x = func.call @g() : () -> i32
@@ -15,14 +15,9 @@
 // CHECK-NEXT:  func.func @main() -> i32 {
 // CHECK-NEXT:    %res = equivalence.graph : () -> i32 {
 // CHECK-NEXT:      %x = func.call @g() : () -> i32
-// CHECK-NEXT:      %0 = scf.execute_region -> (i32) {
-// CHECK-NEXT:        %x_1 = func.call @g() : () -> i32
-// CHECK-NEXT:        %a = equivalence.class %x_1 : i32
-// CHECK-NEXT:        scf.yield %a : i32
-// CHECK-NEXT:      }
+// CHECK-NEXT:      %a = equivalence.class %x, %r : i32
 // CHECK-NEXT:      %r = func.call @f() : () -> i32
-// CHECK-NEXT:      %y = equivalence.class %r, %x, %0 : i32
-// CHECK-NEXT:      equivalence.yield %y : i32
+// CHECK-NEXT:      equivalence.yield %a : i32
 // CHECK-NEXT:    }
 // CHECK-NEXT:    func.return %res : i32
 // CHECK-NEXT:  }

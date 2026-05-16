@@ -17,11 +17,11 @@
 // CHECK-NEXT:   func.func @main() -> i32 {
 // CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
 // CHECK-NEXT:       %x = func.call @g() : () -> i32
-// CHECK-NEXT:       %a = equivalence.class %x : i32
-// CHECK-NEXT:       %b = func.call @h(%a) : (i32) -> i32
+// CHECK-NEXT:       %b = func.call @h(%y) : (i32) -> i32
 // CHECK-NEXT:       %r = equivalence.class %r_1, %b : i32
 // CHECK-NEXT:       %r_1 = func.call @f() : () -> i32
-// CHECK-NEXT:       equivalence.yield %a : i32
+// CHECK-NEXT:       %y = equivalence.class %x : i32
+// CHECK-NEXT:       equivalence.yield %y : i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     func.return %res : i32
 // CHECK-NEXT:   }
@@ -32,7 +32,7 @@ func.func private @h(%arg0: i32) -> i32
 
 func.func @f() -> i32 {
     %res = equivalence.graph : () -> i32 {
-        // x' = g()
+        // x' = g()r
         %x_2 = func.call @g() : () -> i32
 
         // a = E-class(x')

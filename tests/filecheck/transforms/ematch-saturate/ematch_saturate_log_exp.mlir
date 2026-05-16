@@ -3,6 +3,60 @@
 // The purpose of this file is to show that inlining can be done on several levels and the rewrite rule will match with
 // the lowest version of the function
 
+// CHECK: func.func @log_return(%arg0: f32) -> f32 {
+// CHECK-NEXT:     %0 = equivalence.graph : () -> f32 {
+// CHECK-NEXT:       %1 = math.log %arg0 : f32
+// CHECK-NEXT:       equivalence.yield %1 : f32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %0 : f32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.func @log_return2(%arg0: f32) -> f32 {
+// CHECK-NEXT:     %0 = equivalence.graph : () -> f32 {
+// CHECK-NEXT:       %1 = math.log %arg0 : f32
+// CHECK-NEXT:       %2 = equivalence.class %3, %1 : f32
+// CHECK-NEXT:       %3 = func.call @log_return(%arg0) : (f32) -> f32
+// CHECK-NEXT:       equivalence.yield %2 : f32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %0 : f32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.func @log_return3(%arg0: f32) -> f32 {
+// CHECK-NEXT:     %0 = equivalence.graph : () -> f32 {
+// CHECK-NEXT:       %1 = math.log %arg0 : f32
+// CHECK-NEXT:       %2 = equivalence.class %3, %1, %4 : f32
+// CHECK-NEXT:       %3 = func.call @log_return(%arg0) : (f32) -> f32
+// CHECK-NEXT:       %4 = func.call @log_return2(%arg0) : (f32) -> f32
+// CHECK-NEXT:       equivalence.yield %2 : f32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %0 : f32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.func @compound(%arg0: f32) -> f32 {
+// CHECK-NEXT:     %0 = equivalence.graph : () -> f32 {
+// CHECK-NEXT:       %1 = math.exp %arg0 : f32
+// CHECK-NEXT:       equivalence.yield %1 : f32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %0 : f32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.func @quant_model(%arg0: f32, %arg1: f32) -> f32 {
+// CHECK-NEXT:     %0 = equivalence.graph : () -> f32 {
+// CHECK-NEXT:       %1 = math.log %arg0 : f32
+// CHECK-NEXT:       %2 = equivalence.class %3, %1, %4, %5 : f32
+// CHECK-NEXT:       %3 = func.call @log_return(%arg0) : (f32) -> f32
+// CHECK-NEXT:       %4 = func.call @log_return2(%arg0) : (f32) -> f32
+// CHECK-NEXT:       %5 = func.call @log_return3(%arg0) : (f32) -> f32
+// CHECK-NEXT:       %6 = math.log %arg1 : f32
+// CHECK-NEXT:       %7 = equivalence.class %8, %6, %9, %10 : f32
+// CHECK-NEXT:       %8 = func.call @log_return(%arg1) : (f32) -> f32
+// CHECK-NEXT:       %9 = func.call @log_return2(%arg1) : (f32) -> f32
+// CHECK-NEXT:       %10 = func.call @log_return3(%arg1) : (f32) -> f32
+// CHECK-NEXT:       %arg0_1 = arith.addf %2, %7 : f32
+// CHECK-NEXT:       %11 = arith.mulf %arg0, %arg1 : f32
+// CHECK-NEXT:       %12 = math.exp %arg0_1 : f32
+// CHECK-NEXT:       %13 = equivalence.class %14, %12, %11 : f32
+// CHECK-NEXT:       %14 = func.call @compound(%arg0_1) : (f32) -> f32
+// CHECK-NEXT:       equivalence.yield %13 : f32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %0 : f32
+// CHECK-NEXT:   }
 
 func.func @log_return(%arg0: f32) -> f32 {
     %0 = equivalence.graph : () -> (f32) {

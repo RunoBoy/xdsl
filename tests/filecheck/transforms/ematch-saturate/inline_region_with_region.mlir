@@ -1,8 +1,44 @@
-func.func private @h() -> i32
+// xdsl-opt %x -p ematch-saturate | filecheck %s
 
+// CHECK: func.func private @h() -> i32
+// CHECK-NEXT:   func.func @f() -> i32 {
+// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
+// CHECK-NEXT:       %cond = arith.constant false
+// CHECK-NEXT:       %x = scf.if %cond -> (i32) {
+// CHECK-NEXT:         %a = arith.constant 2 : i32
+// CHECK-NEXT:         scf.yield %a : i32
+// CHECK-NEXT:       } else {
+// CHECK-NEXT:         %b = arith.constant 3 : i32
+// CHECK-NEXT:         scf.yield %b : i32
+// CHECK-NEXT:       }
+// CHECK-NEXT:       %vv = func.call @h() : () -> i32
+// CHECK-NEXT:       %c = equivalence.class %vv, %x : i32
+// CHECK-NEXT:       equivalence.yield %c : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %res : i32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.func @main() -> i32 {
+// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
+// CHECK-NEXT:       %x = func.call @h() : () -> i32
+// CHECK-NEXT:       %cond = equivalence.class %cond_1 : i1
+// CHECK-NEXT:       %cond_1 = arith.constant false
+// CHECK-NEXT:       %x_1 = scf.if %cond -> (i32) {
+// CHECK-NEXT:         %a = arith.constant 2 : i32
+// CHECK-NEXT:         scf.yield %a : i32
+// CHECK-NEXT:       } else {
+// CHECK-NEXT:         %b = arith.constant 3 : i32
+// CHECK-NEXT:         scf.yield %b : i32
+// CHECK-NEXT:       }
+// CHECK-NEXT:       %r = func.call @f() : () -> i32
+// CHECK-NEXT:       %y = equivalence.class %x, %r, %x_1 : i32
+// CHECK-NEXT:       equivalence.yield %y : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %res : i32
+// CHECK-NEXT:   }
+
+func.func private @h() -> i32
 func.func @f() -> i32 {
     %res = equivalence.graph : () -> i32 {
-        // x' = g()
         %cond = arith.constant 0 : i1
         %x = scf.if %cond -> (i32) {
             %a = arith.constant 2 : i32
@@ -35,43 +71,6 @@ func.func @main() -> i32 {
     return %res_1 : i32
 }
 
-//func.func private @h() -> i32
-//  func.func @f() -> i32 {
-//    %res = equivalence.graph : () -> i32 {
-//      %cond = arith.constant false
-//      %x = scf.if %cond -> (i32) {
-//        %a = arith.constant 2 : i32
-//        scf.yield %a : i32
-//      } else {
-//        %b = arith.constant 3 : i32
-//        scf.yield %b : i32
-//      }
-//      %vv = func.call @h() : () -> i32
-//      %c = equivalence.class %vv, %x : i32
-//      equivalence.yield %c : i32
-//    }
-//    func.return %res : i32
-//  }
-//  func.func @main() -> i32 {
-//    %res = equivalence.graph : () -> i32 {
-//      %x = func.call @h() : () -> i32
-//      %0 = scf.execute_region -> (i32) {
-//        %cond = arith.constant false
-//        %x_1 = scf.if %cond -> (i32) {
-//          %a = arith.constant 2 : i32
-//          scf.yield %a : i32
-//        } else {
-//          %b = arith.constant 3 : i32
-//          scf.yield %b : i32
-//        }
-//        %c = equivalence.class %x, %x_1, %r, %0 : i32
-//        scf.yield %c : i32
-//      }
-//      %r = func.call @f() : () -> i32
-//      equivalence.yield %c : i32
-//    }
-//    func.return %res : i32
-//  }
   pdl_interp.func @matcher(%arg0: !pdl.operation) {
     pdl_interp.check_operation_name of %arg0 is "scf.execute_region" -> ^bb0, ^bb1
   ^bb2:

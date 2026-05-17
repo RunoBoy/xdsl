@@ -63,6 +63,23 @@ class GetRegionOp(IRDLOperation):
             result_types=[RegionType],
         )
 
+@irdl_op_definition
+class GetParentRegionOp(IRDLOperation):
+    """
+    Given a region, return the parent region
+    """
+    name = "pdl_interp_region.get_parent_region"
+    input_op = operand_def(RegionType)
+    result_def(RegionType)
+
+    assembly_format = "`of ` $input_op attr-dict"
+
+    def __init__(self, input_op: SSAValue) -> None:
+        super().__init__(
+            operands=[input_op],
+            result_types=[RegionType()],
+        )
+
 
 @irdl_op_definition
 class InlineRegionOp(IRDLOperation):

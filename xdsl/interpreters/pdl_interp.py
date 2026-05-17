@@ -780,6 +780,19 @@ class PDLInterpFunctions(InterpreterFunctions):
         operations = list(region.blocks[0].ops)
         return (operations,)
 
+    @impl(pdl_interp_region.GetParentRegionOp)
+    def run_get_parent_region(
+            self,
+            interpreter: Interpreter,
+            op: pdl_interp_region.CreateRegionOp,
+            args: tuple[Any, ...],
+    ) -> tuple[Any, ...]:
+        assert args
+        region = args[0]
+        assert isinstance(region, Region)
+
+        return (region.parent_region(),)
+
     @impl(pdl_interp_region.CloneRegionOp)
     def run_clone_region(
             self,

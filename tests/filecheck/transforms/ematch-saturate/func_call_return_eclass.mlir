@@ -3,24 +3,24 @@
 // This file aims to show that a function can return an E-class, so instead of completely inlining, we need to
 // union these E-classes.
 
-// CHECK:func.func private @g() -> i32
-// CHECK-NEXT:  func.func @f() -> i32 {
-// CHECK-NEXT:    %res = equivalence.graph : () -> i32 {
-// CHECK-NEXT:      %x = func.call @g() : () -> i32
-// CHECK-NEXT:      %a = equivalence.class %x : i32
-// CHECK-NEXT:      equivalence.yield %a : i32
-// CHECK-NEXT:    }
-// CHECK-NEXT:    func.return %res : i32
-// CHECK-NEXT:  }
-// CHECK-NEXT:  func.func @main() -> i32 {
-// CHECK-NEXT:    %res = equivalence.graph : () -> i32 {
-// CHECK-NEXT:      %x = func.call @g() : () -> i32
-// CHECK-NEXT:      %a = equivalence.class %x, %r : i32
-// CHECK-NEXT:      %r = func.call @f() : () -> i32
-// CHECK-NEXT:      equivalence.yield %a : i32
-// CHECK-NEXT:    }
-// CHECK-NEXT:    func.return %res : i32
-// CHECK-NEXT:  }
+// CHECK: func.func private @g() -> i32
+// CHECK-NEXT:   func.func @f() -> i32 {
+// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
+// CHECK-NEXT:       %x = func.call @g() : () -> i32
+// CHECK-NEXT:       %a = equivalence.class %x : i32
+// CHECK-NEXT:       equivalence.yield %a : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %res : i32
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.func @main() -> i32 {
+// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
+// CHECK-NEXT:       %x = func.call @g() : () -> i32
+// CHECK-NEXT:       %r = func.call @f() : () -> i32
+// CHECK-NEXT:       %y = equivalence.class %r, %x : i32
+// CHECK-NEXT:       equivalence.yield %y : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     func.return %res : i32
+// CHECK-NEXT:   }
 
 func.func private @g() -> i32
 
@@ -92,73 +92,74 @@ func.func @main() -> i32 {
   }
 
   builtin.module @rewriters {
-    pdl_interp.func @if_true_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
-      %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
-      pdl_interp.finalize
-    }
-
-     pdl_interp.func @if_false_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
-      %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
-      pdl_interp.finalize
-    }
-
     pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
       %2 = pdl_interp.get_defining_op of %1 : !pdl.value
-      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb1, ^bb2
-      ^bb1:
-          // 1. Capture the yielded class BEFORE anything is erased
-          %yielded_class_val = ematch.get_class_result %1
-          %yielded_class_range = pdl_interp.create_range %yielded_class_val : !pdl.value
+      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb0, ^bb1
+    // If an E-class is returned, we union the classes with the original execute_region E-class
+    ^bb0:
+      // Extract the E-class of the value that was just yielded by the inlined region
+      %new_eclass_val = ematch.get_class_result %1
+      %new_eclass_range = pdl_interp.create_range %new_eclass_val : !pdl.value
 
-          // 2. Capture the target class (%y) using get_defining_op
-          %arg0_res = pdl_interp.get_result 0 of %arg0
-          %y_val = ematch.get_class_result %arg0_res
-          %y_op = pdl_interp.get_defining_op of %y_val : !pdl.value
+      // Grab the result of the original execute_region
+      %original_res = pdl_interp.get_result 0 of %arg0
+      %original_eclass_val = ematch.get_class_result %original_res
+      // Now grab the E-class belonging to the original execute_region
+      %original_eclass_op = pdl_interp.get_defining_op of %original_eclass_val : !pdl.value
 
-          // 3. Forward uses safely so we don't create zombie pointers
-          pdl_interp.replace %arg0 with (%1 : !pdl.value)
+      // Replace uses of the old operation with the newly inlined value
+      pdl_interp.replace %arg0 with (%1 : !pdl.value)
 
-          // 4. Hashcons the region (Phase 1 of your FSM)
-          ematch.dedup_region %inlined_ops in %arg0
+      // Deduplicate the region and union the E-classes
+      ematch.dedup_region %inlined_ops in %arg0
+      ematch.union %original_eclass_op : !pdl.operation, %new_eclass_range : !pdl.range<value>
 
-          // 5. Link the E-classes (Phase 2 of your FSM)
-          ematch.union %y_op : !pdl.operation, %yielded_class_range : !pdl.range<value>
-
-          pdl_interp.finalize
-       ^bb2:
-          pdl_interp.replace %arg0 with (%1 : !pdl.value)
-          ematch.dedup_region %inlined_ops in %arg0
-          pdl_interp.finalize
+      pdl_interp.finalize
+    // If a regular operation is returned, we only deduplicate the region
+    ^bb1:
+      pdl_interp.replace %arg0 with (%1 : !pdl.value)
+      ematch.dedup_region of %inlined_ops in %arg0
+      pdl_interp.finalize
     }
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
+      // Add the E-classes from the cloned region to the E-graph. Either these are new E-classes, or they will be
+      // combined with existing E-classes
       ematch.add_cloned_eclasses of %region
+
+      // Iterate over the region and deduplicate existing operations, if no new operations are found, a null value is
+      // returned and bb1 will be executed
       %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
       %inlined_ops = ematch.dedup_region of %region_iterator in %arg0
       pdl_interp.is_not_null %inlined_ops : !pdl.range<operation> -> ^bb0, ^bb1
+
+      // At least 1 new operation was found, so an execute_region is created to hold the body of the function
     ^bb0:
       %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)
+
+      // Union this region with the original call
       %0 = pdl_interp.get_result 0 of %execute_region
       %1 = ematch.get_class_result %0
       %2 = pdl_interp.create_range %1 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %2 : !pdl.range<value>
       pdl_interp.finalize
-    ^bb1:
-      // Delete the execute_region
+
+      // No new operations were found, but there is still a yield operation left from the insertion
+      ^bb1:
+      // Extract the yielded value from the completely deduplicated region
+      %yield_op = pdl_interp_region.get_operation() called "scf.yield" 0 of %region
+      %yield_val = pdl_interp.get_operand 0 of %yield_op
+
+      // Union the original call directly with the yielded value, otherwise the yield is present in a seperate E-class
+      %yield_class = ematch.get_class_result %yield_val
+      %yield_range = pdl_interp.create_range %yield_class : !pdl.value
+      ematch.union %arg0 : !pdl.operation, %yield_range : !pdl.range<value>
+
+      // Delete the yield from the operations and E-graph
+      %clean = pdl_interp_region.delete_op_from_region(%yield_op : !pdl.operation) of %region
+
       pdl_interp.finalize
     }
   }

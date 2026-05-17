@@ -113,28 +113,6 @@ func.func @main() -> i32 {
   }
 
   builtin.module @rewriters {
-    pdl_interp.func @if_true_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
-      %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
-      pdl_interp.finalize
-    }
-
-     pdl_interp.func @if_false_rewriter(%arg0 : !pdl.operation, %arg1 : !pdl.type) {
-      %0 = pdl_interp_region.get_region 1 of %arg0 : !pdl_region.region
-      %1 = pdl_interp_region.create_operation_with_region "scf.execute_region"(%0 : !pdl_region.region) -> (%arg1 : !pdl.type)
-      %11 = ematch.dedup %1
-      %2 = pdl_interp.get_result 0 of %11
-      %3 = ematch.get_class_result %2
-      %4 = pdl_interp.create_range %3 : !pdl.value
-      ematch.union %arg0 : !pdl.operation, %4 : !pdl.range<value>
-      pdl_interp.finalize
-    }
-
      pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
       %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
       %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
@@ -168,19 +146,41 @@ func.func @main() -> i32 {
     }
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
+      // Add the E-classes from the cloned region to the E-graph. Either these are new E-classes, or they will be
+      // combined with existing E-classes
       ematch.add_cloned_eclasses of %region
+
+      // Iterate over the region and deduplicate existing operations, if no new operations are found, a null value is
+      // returned and bb1 will be executed
       %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
       %inlined_ops = ematch.dedup_region of %region_iterator in %arg0
       pdl_interp.is_not_null %inlined_ops : !pdl.range<operation> -> ^bb0, ^bb1
+
+      // At least 1 new operation was found, so an execute_region is created to hold the body of the function
     ^bb0:
       %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)
+
+      // Union this region with the original call
       %0 = pdl_interp.get_result 0 of %execute_region
       %1 = ematch.get_class_result %0
       %2 = pdl_interp.create_range %1 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %2 : !pdl.range<value>
       pdl_interp.finalize
-    ^bb1:
-      // Delete the execute_region
+
+      // No new operations were found, but there is still a yield operation left from the insertion
+      ^bb1:
+      // Extract the yielded value from the completely deduplicated region
+      %yield_op = pdl_interp_region.get_operation() called "scf.yield" 0 of %region
+      %yield_val = pdl_interp.get_operand 0 of %yield_op
+
+      // Union the original call directly with the yielded value, otherwise the yield is present in a seperate E-class
+      %yield_class = ematch.get_class_result %yield_val
+      %yield_range = pdl_interp.create_range %yield_class : !pdl.value
+      ematch.union %arg0 : !pdl.operation, %yield_range : !pdl.range<value>
+
+      // Delete the yield from the operations and E-graph
+      %clean = pdl_interp_region.delete_op_from_region(%yield_op : !pdl.operation) of %region
+
       pdl_interp.finalize
     }
 

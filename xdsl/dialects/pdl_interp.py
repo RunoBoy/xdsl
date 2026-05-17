@@ -116,23 +116,6 @@ class GetOperandOp(IRDLOperation):
             operands=[input_op], properties={"index": index}, result_types=[ValueType()]
         )
 
-# @irdl_op_definition
-# class GetOperandsOp(IRDLOperation):
-#     """
-#     See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpget_operand-pdl_interpgetoperandop).
-#     """
-#
-#     name = "pdl_interp.get_operands"
-#     input_op = operand_def(OperationType)
-#     value = result_def(RangeType[ValueType])
-#
-#     assembly_format = "`of` $input_op attr-dict"
-#
-#     def __init__(self, input_op: SSAValue) -> None:
-#         super().__init__(
-#             operands=[input_op], result_types=[RangeType(ValueType())]
-#         )
-
 
 @irdl_op_definition
 class GetOperandsOp(IRDLOperation):

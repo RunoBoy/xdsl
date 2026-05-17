@@ -44,6 +44,9 @@ from xdsl.printer import Printer
 
 @irdl_op_definition
 class GetRegionOp(IRDLOperation):
+    """
+    Given an operation, return the region at a given index
+    """
     name = "pdl_interp_region.get_region"
     input_op = operand_def(OperationType)
     index = prop_def(IntegerAttr[I32])
@@ -63,6 +66,10 @@ class GetRegionOp(IRDLOperation):
 
 @irdl_op_definition
 class InlineRegionOp(IRDLOperation):
+    """
+    Given an operation, inline the given regions at the level of the operation, essentially lifting the region one
+    scope higher
+    """
     name = "pdl_interp_region.inline_region"
     input_op = operand_def(OperationType)
     repl_values = var_operand_def(RegionType)
@@ -79,6 +86,9 @@ class InlineRegionOp(IRDLOperation):
 
 @irdl_op_definition
 class GetOperationOp(IRDLOperation):
+    """
+    Given a set of constraint (type, attributes, operands, name), return the operation at index which matches
+    """
     name = "pdl_interp_region.get_operation"
     index = prop_def(IntegerAttr[I32])
     opt_name = prop_def(StringAttr, prop_name="opt_name")
@@ -118,6 +128,9 @@ class GetOperationOp(IRDLOperation):
 
 @irdl_op_definition
 class CreateRegionOp(IRDLOperation):
+    """
+    Create an empty region
+    """
     name = "pdl_interp_region.create_region"
 
     result_op = result_def(RegionType)
@@ -136,6 +149,9 @@ class CreateRegionOp(IRDLOperation):
 
 @irdl_op_definition
 class DebugPrintOp(IRDLOperation):
+    """
+    Small helper function that prints some string when called
+    """
     name = "pdl_interp_region.debug_print"
     message = prop_def(StringAttr | ValueType | OperationType | AttributeType)
 
@@ -149,6 +165,9 @@ class DebugPrintOp(IRDLOperation):
 
 @irdl_op_definition
 class CloneRegionOp(IRDLOperation):
+    """
+    Clone a given region such that it can be used by other operations
+    """
     name = "pdl_interp_region.clone_region"
     region = operand_def(RegionType)
 
@@ -171,6 +190,9 @@ class CloneRegionOp(IRDLOperation):
 
 @irdl_op_definition
 class InsertOpIntoRegionOp(IRDLOperation):
+    """
+    Given an operation, insert it into a region with an optional location
+    """
     name = "pdl_interp_region.insert_op_into_region"
     opt_operand = operand_def(OperationType)
     opt_before = opt_operand_def(OperationType)
@@ -199,6 +221,9 @@ class InsertOpIntoRegionOp(IRDLOperation):
 
 @irdl_op_definition
 class DeleteOpFromRegionOp(IRDLOperation):
+    """
+    Given an operation, delete it from a region
+    """
     name = "pdl_interp_region.delete_op_from_region"
     opt_operand = operand_def(OperationType)
     region = operand_def(RegionType)
@@ -224,6 +249,9 @@ class DeleteOpFromRegionOp(IRDLOperation):
 
 @irdl_op_definition
 class RegionIteratorOp(IRDLOperation):
+    """
+    Give the operations of a region as a pdl.range<operations>
+    """
     name = "pdl_interp_region.region_iterator"
     region = operand_def(RegionType)
 
@@ -248,6 +276,8 @@ class RegionIteratorOp(IRDLOperation):
 class CreateOperationRegionOp(IRDLOperation):
     """
     See external [documentation](https://mlir.llvm.org/docs/Dialects/PDLInterpOps/#pdl_interpcreate_operation-pdl_interpcreateoperationop).
+
+    But with the additional ability to add regions to the operation
     """
 
     name = "pdl_interp_region.create_operation_with_region"

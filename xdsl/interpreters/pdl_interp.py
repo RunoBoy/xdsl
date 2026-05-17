@@ -1,11 +1,9 @@
-from typing import Any, cast, List, Tuple
+from typing import Any, cast
 
 from xdsl.context import Context
-from xdsl.dialects import pdl, pdl_interp, pdl_region, pdl_interp_region
-from xdsl.dialects.builtin import SymbolRefAttr, IntegerAttr
-from xdsl.dialects.func import FuncOp, CallOp
+from xdsl.dialects import pdl, pdl_interp, pdl_interp_region
+from xdsl.dialects.builtin import SymbolRefAttr
 from xdsl.dialects.pdl import RangeType, ValueType
-from xdsl.dialects.pdl_types import AttributeType, TypeType
 from xdsl.dialects.scf import YieldOp
 from xdsl.interpreter import (
     Interpreter,
@@ -18,7 +16,7 @@ from xdsl.interpreter import (
     impl_terminator,
     register_impls, impl_external,
 )
-from xdsl.ir import Attribute, Operation, OpResult, SSAValue, Region, Block, BlockArgument, OpOperands, TypeAttribute
+from xdsl.ir import Attribute, Operation, OpResult, SSAValue, Region, Block, OpOperands, TypeAttribute
 from xdsl.irdl import IRDLOperation
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
@@ -489,7 +487,6 @@ class PDLInterpFunctions(InterpreterFunctions):
             attr_names: list[str],
             num_operands: int,
             num_attributes: int,
-            num_regions: int,
     ) -> IRDLOperation:
         # Get operation name
         ctx = PDLInterpFunctions.get_ctx(interpreter)
@@ -517,9 +514,10 @@ class PDLInterpFunctions(InterpreterFunctions):
                 attributes[name] = prop_or_attr
         result_types = list(args[num_operands + num_attributes:])
 
-        # Seperate the regions and operands
+        # Separate the regions and operands
         filtered_regions = [x for x in operands if isinstance(x, Region)]
         filtered_operands = [x for x in operands if not isinstance(x, Region)]
+
         # Create the new operation
         result_op = op_type.create(
             operands=filtered_operands,
@@ -545,7 +543,6 @@ class PDLInterpFunctions(InterpreterFunctions):
             [name.data for name in op.input_attribute_names.data],
             len(op.input_operands),
             len(op.input_attributes),
-            1
         )
 
         rewriter = self.get_rewriter(interpreter)
@@ -679,16 +676,21 @@ class PDLInterpFunctions(InterpreterFunctions):
             args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
         assert args
+        assert len(args) == 2
 
         insert_op_old = args[0]
         if insert_op_old is None:
             return tuple([Region()])
         assert isinstance(insert_op_old, Operation)
+
+        # Clone the operation to insert
         insert_op = insert_op_old.clone()
 
+        # Erase the old operation
         rewriter = self.get_rewriter(interpreter)
         rewriter.erase_op(insert_op_old, safe_erase=False)
 
+        # Extract region
         region = args[-1]
         assert isinstance(region, Region)
         before = args[1] if len(args) == 3 else None
@@ -697,6 +699,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         if len(region.blocks) != 1:
             return tuple([Region()])
 
+        # Insert th operation at a specific point if given
         block = region.blocks[0]
         if before is not None:
             if not isinstance(before, Operation) or before.parent_block() is not block:
@@ -719,6 +722,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             op: pdl_interp_region.DeleteOpFromRegionOp,
             args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
+        assert args
         assert len(args) == 2
 
         operation = args[0]
@@ -738,6 +742,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         if operation.parent_block() is not block:
             return (region,)
 
+        # Erase the actual operation
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
         rewriter.handle_operation_removal(operation)
         block.erase_op(operation, safe_erase=False)
@@ -763,7 +768,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             interpreter: Interpreter,
             op: pdl_interp_region.CreateRegionOp,
             args: tuple[Any, ...],
-        ) -> tuple[Any, ...]:
+    ) -> tuple[Any, ...]:
         assert args
         region = args[0]
         assert isinstance(region, Region)
@@ -796,6 +801,8 @@ class PDLInterpFunctions(InterpreterFunctions):
             op: pdl_interp_region.GetOperationOp,
             args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
+
+        # Extract operation name and index (mandatory values) from the properties
         index = op.properties['index'].value.data
         name = op.properties['opt_name'].data
 
@@ -803,6 +810,7 @@ class PDLInterpFunctions(InterpreterFunctions):
         if not isinstance(region, Region):
             return (None,)
 
+        # Make a list of all optional arguments
         opt_attributes: list[Attribute] = []
         opt_types: list[Attribute] = []
         opt_operands: list[OpResult] = []
@@ -811,30 +819,28 @@ class PDLInterpFunctions(InterpreterFunctions):
             if arg is None:
                 continue
 
-            # Values (PDL value placeholders) are represented as SSA result wrappers.
+            # If an OpResult is present, it's a pdl.value that acts as an operand
             if isinstance(arg, OpResult):
                 opt_operands.append(arg)
                 continue
 
-            # Broadly treat anything that isa TypeAttribute as a *type* filter
-            # (covers IntegerType, FloatType, etc. represented as type attributes).
+            # If a TypeAttribute is present, the resulting types of the operation can be filtered
             if isa(arg, TypeAttribute):
                 opt_types.append(arg)
                 continue
 
-            # Anything that is an Attribute (but not a TypeAttribute) is an attribute filter
-            # (covers IntegerAttr, StringAttr, SymbolRefAttr, ...).
+            # Any attribute that is not a TypeAttribute is a regular attribute to match with
             if isinstance(arg, Attribute):
                 opt_attributes.append(arg)
                 continue
 
-            # Fallback heuristic: many attrs expose a `.data` field (e.g. IntegerAttr).
-            # If present, assume attribute; otherwise, assume a type-like object.
+            # Check for a data field
             if hasattr(arg, "data"):
                 opt_attributes.append(arg)
             else:
                 opt_types.append(arg)
 
+        # Create a list of candidates for the operation
         candidates = []
         for candidate in region.walk():
             if candidate.name != name:
@@ -844,6 +850,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             if len(candidate.operands) < len(opt_operands):
                 continue
 
+            # Match based on operands
             operands_match = True
             for expected, actual in zip(opt_operands, candidate.operands):
                 if expected != actual:
@@ -852,6 +859,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             if not operands_match:
                 continue
 
+            # Match based on attributes
             attributes_match = True
             candidate_attrs = list(candidate.attributes.values()) + list(candidate.properties.values())
             if len(candidate_attrs) < len(opt_attributes):
@@ -863,6 +871,7 @@ class PDLInterpFunctions(InterpreterFunctions):
             if not attributes_match:
                 continue
 
+            # Match based on types
             types_match = True
             candidate_result_types = list(candidate.result_types)
             if len(candidate_result_types) < len(opt_types):
@@ -874,8 +883,10 @@ class PDLInterpFunctions(InterpreterFunctions):
             if not types_match:
                 continue
 
+            # If an operation passed al these checks, it's a valid operation
             candidates.append(candidate)
 
+        # Return candidate at index, if possible
         if len(candidates) <= index:
             return (None,)
         return (candidates[index],)
@@ -905,6 +916,8 @@ class PDLInterpFunctions(InterpreterFunctions):
         region = args[1]
         assert isinstance(region, Region)
 
+        # Extract the value that yield represents (we need this to know which value from the region subsequent
+        # operations use
         new_region = region
         if len(new_region.blocks) > 1:
             yield_op = new_region.last_block.last_op
@@ -918,16 +931,15 @@ class PDLInterpFunctions(InterpreterFunctions):
         # Inline the block's operations before the input operation
         rewriter = self.get_rewriter(interpreter)
 
-        # FIX: Use .ops instead of .walk() to avoid flattening nested regions
+        # Use .ops instead of .walk() to avoid flattening nested regions
         ops = list(region.blocks[0].ops)[:-1]
-
         rewriter.inline_block(region.blocks[0], InsertPoint.before(input_op))
 
         # Erase the yield op since it's no longer needed
         rewriter.erase_op(yield_op, safe_erase=False)
 
         # Return the value that was yielded (now defined by an inlined op)
-        return (results_of_yield[0], ops)
+        return results_of_yield[0], ops
 
     @impl_external("get_function_call")
     def run_get_function_call_op(
@@ -944,51 +956,18 @@ class PDLInterpFunctions(InterpreterFunctions):
         callee = SymbolTable.lookup_symbol(call_operation, function_name)
         return True, tuple([callee])
 
-    @impl_external("replace_return_with_yield")
-    def run_replace_return_with_yield(
-            self, interp: Interpreter, op: Operation, args: PythonValues
-    ) -> tuple[bool, tuple[Region, ...]]:
-        assert args
-        region = args[0]
-        assert isinstance(region, Region)
-
-        new_region = region.clone()
-        if len(new_region.blocks) > 1:
-            return_op = new_region.last_block.last_op
-        else:
-            return_op = new_region.ops.last
-
-        yield_op = YieldOp.create(
-            operands=return_op.operands,
-            result_types=return_op.result_types,
-            properties=return_op.properties,
-            attributes=return_op.attributes,
-            successors=return_op.successors,
-            regions=return_op.regions,
-        )
-
-        self.get_rewriter(interp).replace_op(
-            return_op, yield_op
-        )
-
-        return True, tuple([new_region])
-
-    @impl_external("get_arguments_of_function")
-    def run_get_arguments_of_function(
-            self, interp: Interpreter, op: Operation, args: PythonValues
-    ) -> tuple[bool, tuple[ValueType, ...]]:
-        assert args
-        func_op = args[0]
-        assert isinstance(func_op, Operation)
-
-        args = func_op.args
-
-        return True, tuple([args])
-
     @impl_external("replace_func_args_with_correct_definitions")
     def run_replace_func_args_with_correct_definitions(
             self, interpreter: Interpreter, op: Operation, args: PythonValues
     ) -> tuple[bool, tuple[...]]:
+        """
+        The functionality of this function is very similar to ReplaceOp, but there are 2 big differences
+        - The arguments of a func.func operation are blockarguments, not operands. So we have no pdl_interp way to
+            extract these values
+        - When replacing values during equality saturation, the replace_all_uses_with() function will add the new
+            operation to the hashcons, but it's possible that we're working with floating regions, where the operations
+            should not be present in the hashcons
+        """
         assert args
         caller_args = args[0]
         assert isinstance(caller_args, OpOperands)

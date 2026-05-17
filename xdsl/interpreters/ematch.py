@@ -18,6 +18,7 @@ from xdsl.transforms.common_subexpression_elimination import KnownOps
 from xdsl.utils.disjoint_set import DisjointSet
 from xdsl.utils.exceptions import InterpretationError
 from xdsl.utils.hints import isa
+from xdsl.traits import IsTerminator
 
 
 @register_impls
@@ -92,6 +93,7 @@ class EmatchFunctions(InterpreterFunctions):
         input_region = args[0]
         assert isinstance(input_region, Region)
 
+        # Add every E-class to the union find
         for op in input_region.walk():
             if isinstance(op, equivalence.AnyClassOp):
                 self.eclass_union_find.add(op)
@@ -223,6 +225,7 @@ class EmatchFunctions(InterpreterFunctions):
         eclass_op = None
         insertpoint = None
 
+        # Find either the E-class, or the highest insertion point to create the new one
         if isinstance(val, OpResult):
             # If val is defined by a ClassOp, mark it
             if isinstance(val.owner, equivalence.AnyClassOp):
@@ -239,7 +242,7 @@ class EmatchFunctions(InterpreterFunctions):
                 if isinstance(user, equivalence.AnyClassOp):
                     eclass_op = user
 
-        # Ensure the pre-existing ClassOp is tracked in union_find!
+        # Ensure the pre-existing ClassOp is in the union_find
         if eclass_op is not None:
             try:
                 self.eclass_union_find.find(eclass_op)
@@ -250,12 +253,12 @@ class EmatchFunctions(InterpreterFunctions):
         # If the value is not part of an eclass yet, create one
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
+        # Insert the E-class at the highest point
         eclass_op = equivalence.ClassOp(val)
         rewriter.insert_op(eclass_op, insertpoint)
         self.eclass_union_find.add(eclass_op)
 
-        # CRITICAL FIX: Replace uses of val with the eclass result,
-        # but NEVER replace operands of ANY e-class operation to avoid nested e-classes.
+        # Only replace values that are not inside an eclass
         rewriter.replace_uses_with_if(
             val,
             eclass_op.result,
@@ -271,8 +274,11 @@ class EmatchFunctions(InterpreterFunctions):
             b: equivalence.AnyClassOp,
             priority_right: bool | None = None
     ) -> bool:
-        """Unions two eclasses, merging their operands and results.
-        Returns True if the eclasses were merged, False if they were already the same."""
+        """
+        Unions two eclasses, merging their operands and results.
+        Returns True if the eclasses were merged, False if they were already the same.
+        Priority right can be true to merge with b, or false to merge with a
+        """
         a = self.eclass_union_find.find(a)
         b = self.eclass_union_find.find(b)
 
@@ -285,9 +291,7 @@ class EmatchFunctions(InterpreterFunctions):
             b_lattice = analysis.get_lattice_element(b.result)
             a_lattice.meet(b_lattice)
 
-        # ---------------------------------------------------------
-        # Determine which class to keep based on priority rules
-        # ---------------------------------------------------------
+        # Determine which class to keep based on priority
         if priority_right is True:
             # A merges into B (B is kept)
             to_keep, to_replace = b, a
@@ -316,20 +320,18 @@ class EmatchFunctions(InterpreterFunctions):
                 self.eclass_union_find.union(a, b)
                 to_keep = self.eclass_union_find.find(a)
                 to_replace = b if to_keep is a else a
-        # ---------------------------------------------------------
 
         # Operands need to be deduplicated because it can happen the same operand was
         # used by different parent eclasses after their children were merged:
         new_operands = OrderedSet(to_keep.operands)
         new_operands.update(to_replace.operands)
 
+        # Clean the operands of the E-class such that it does not contain other E-classes
         clean_operands = OrderedSet()
         for op in new_operands:
-            # If the operand is the result of ANY equivalence.class, discard it!
             if isinstance(op, OpResult) and isinstance(op.owner, equivalence.AnyClassOp):
                 continue
             clean_operands.add(op)
-
         to_keep.operands = tuple(clean_operands)
 
         for use in to_replace.result.uses:
@@ -410,15 +412,15 @@ class EmatchFunctions(InterpreterFunctions):
         # Helper: Get the chain of scopes from the op up to the root
         def get_scope_chain(op, start_empty = False):
             chain = []
+
+            # When adding a new region to an E-graph, we use the location of the location of the operation where it
+            # will be inserted, but since the region will be 1 level below this, we add an empty region
             if start_empty:
                 chain.append(Region())
-            # In xDSL/MLIR, this would be op.parent_block()
             curr_scope = op.parent_region()
 
             while curr_scope is not None:
                 chain.append(curr_scope)
-                # To go up a level, get the operation that owns this scope,
-                # then get THAT operation's parent scope.
                 curr_scope = curr_scope.parent_region() if curr_scope else None
 
             return chain
@@ -467,65 +469,51 @@ class EmatchFunctions(InterpreterFunctions):
             op: ematch.DedupRegionOp,
             args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
+        """
+        Deduplicate every operation in a region you want to insert
+        """
         assert len(args) == 2
         inlined_ops = args[0]
         op_location_to_inline = args[1]
+
+        # Keep track of the operations that are added, since if no new operations are added, nothing has to be created
         ops_added = []
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
-        # PROTECT TERMINATORS (Make sure this is imported!)
-        from xdsl.traits import IsTerminator
-
         for input_op in inlined_ops:
-            if input_op.parent is None:
-                continue
 
-            # # --- PHASE 1: Handle E-Classes ---
+            # if the input operation is an E-class, it's already added to the E-graph during the
+            # run_add_cloned_eclasses() pass
             if isinstance(input_op, equivalence.AnyClassOp):
-                try:
-                    self.eclass_union_find.find(input_op)
-                except KeyError:
-                    self.eclass_union_find.add(input_op)
-
-                merged = False
-                for operand in input_op.operands:
-                    for use in list(operand.uses):
-                        if use.operation is not input_op and isinstance(use.operation, equivalence.AnyClassOp):
-                            self.eclass_union(interpreter, input_op, use.operation)
-                            merged = True
-                            break
-                    if merged:
-                        break
-
-                if not merged:
-                    for use in list(input_op.result.uses):
-                        if isinstance(use.operation, equivalence.AnyClassOp) and use.operation is not input_op:
-                            self.eclass_union(interpreter, input_op, use.operation)
-                            break
                 continue
 
-            # --- PHASE 2: Handle Standard Operations ---
+            #  if the operation is a terminator, skip it
             if input_op.has_trait(IsTerminator):
                 continue
 
+            # if it's a normal operation, deduplicate it and replace uses
             existing = self.known_ops.get(input_op)
 
+            # An equivalent operation exists already
             if existing is not None and existing is not input_op:
+
+                # Check which operation is the highest in scope
                 highest_op, highest_scope = self.resolve_scope_dominance(existing, op_location_to_inline)
 
+                # If there is no operation that dominates the other, we need to lift one of them and remove the other
                 if highest_op is None:
+
+                    # Fallback if entirely disjoint (no LCA)
                     if highest_scope is None:
-                        # Fallback if entirely disjoint (no LCA)
                         self.known_ops[input_op] = input_op
                         ops_added.append(input_op)
                         continue
 
-                    # Parallel scopes. Lift a cloned operation to the LCA scope.
+                    #Lift a cloned operation to the LCA scope.
                     new_op = existing.clone()
-
-                    # Determine which branching operation comes first in the block
                     lca_block = highest_scope.blocks[0]
                     rewriter.insert_op(new_op, InsertPoint.at_start(lca_block))
+
 
                     # 1. Replace existing with new_op
                     for res_old, res_new in zip(existing.results, new_op.results):
@@ -537,18 +525,12 @@ class EmatchFunctions(InterpreterFunctions):
                         self.union_val(interpreter, res_old, res_new, priority_right=True)
                     rewriter.replace_op(input_op, new_ops=[], new_results=new_op.results)
 
+                    # 3. Replace the known operation
                     self.known_ops.pop(existing)
                     self.known_ops[new_op] = new_op
 
-                    # Deduplicate eclass operands locally
-                    for res_new in new_op.results:
-                        for use in list(res_new.uses):
-                            if isinstance(use.operation, equivalence.AnyClassOp):
-                                unique_ops = list(dict.fromkeys(use.operation.operands))
-                                use.operation.operands = tuple(unique_ops)
-
+                # If the existing operation is higher in scope, we can replace the new operation safely
                 elif highest_op == existing:
-                    # Existing safely dominates the new one. Merge allowed.
                     for res_old, res_new in zip(input_op.results, existing.results):
                         self.union_val(interpreter, res_old, res_new, priority_right=True)
 
@@ -560,8 +542,8 @@ class EmatchFunctions(InterpreterFunctions):
                                 unique_ops = list(dict.fromkeys(use.operation.operands))
                                 use.operation.operands = tuple(unique_ops)
 
+                # If the existing operation is lower in scope, replace that value with the new inserted operation
                 else:
-                    # Input op is actually HIGHER in scope than the existing one.
                     for res_old, res_new in zip(existing.results, input_op.results):
                         self.union_val(interpreter, res_old, res_new, priority_right=True)
 
@@ -575,6 +557,8 @@ class EmatchFunctions(InterpreterFunctions):
                             if isinstance(use.operation, equivalence.AnyClassOp):
                                 unique_ops = list(dict.fromkeys(use.operation.operands))
                                 use.operation.operands = tuple(unique_ops)
+
+            # If no equivalent operation exists, add it to the known_ops of the E-graph
             else:
                 self.known_ops[input_op] = input_op
                 ops_added.append(input_op)
@@ -632,20 +616,16 @@ class EmatchFunctions(InterpreterFunctions):
         if eclass.parent is None:
             return
 
-            # --- NEW: E-Class Overlap Detection ---
-            # Look at the operands inside this e-class. If another e-class is tracking
-            # the exact same operand, they are duplicates and must be merged!
+        # Check if the E-class contains another E-class, if so, merge them together
         for operand in list(eclass.operands):
             for use in list(operand.uses):
                 other_op = use.operation
                 if isinstance(other_op, equivalence.AnyClassOp) and other_op is not eclass:
                     if self.eclass_union(interpreter, eclass, other_op):
-                        # Update our reference to the surviving e-class
                         eclass = self.eclass_union_find.find(eclass)
-                        # Add the surviving e-class to the worklist for further repair
                         self.worklist.append(eclass)
 
-            # If this specific e-class instance was erased during the merge, stop processing it
+        # If this specific e-class instance was erased during the merge, stop processing it
         if eclass.parent is None:
             return
 

@@ -26,6 +26,9 @@ class RegionOp(IRDLOperation):
 
 @irdl_attr_definition
 class RegionType(ParametrizedAttribute, TypeAttribute):
+    """
+    A new pdl type to represent regions
+    """
     name = "pdl_region.region"
 
 

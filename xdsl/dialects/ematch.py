@@ -161,7 +161,7 @@ class AddClonedEClasses(IRDLOperation):
 @irdl_op_definition
 class DedupRegionOp(IRDLOperation):
     """
-    Check if the region already exists in the hashcons.
+    Check for every operation in the region whether a structurally equivalent operation exists in the hashcons
 
     If so, remove the new one.
     """

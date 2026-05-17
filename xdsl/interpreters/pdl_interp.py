@@ -784,14 +784,14 @@ class PDLInterpFunctions(InterpreterFunctions):
     def run_get_parent_region(
             self,
             interpreter: Interpreter,
-            op: pdl_interp_region.CreateRegionOp,
+            op: pdl_interp_region.GetParentRegionOp,
             args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert args
-        region = args[0]
-        assert isinstance(region, Region)
+        operation = args[0]
+        assert isinstance(operation, Operation)
 
-        return (region.parent_region(),)
+        return (operation.parent_region(),)
 
     @impl(pdl_interp_region.CloneRegionOp)
     def run_clone_region(

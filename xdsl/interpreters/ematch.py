@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
 from ordered_set import OrderedSet
@@ -252,62 +253,63 @@ class EmatchFunctions(InterpreterFunctions):
             interpreter: Interpreter,
             a: equivalence.AnyClassOp,
             b: equivalence.AnyClassOp,
+            priority_right: bool | None = None
     ) -> bool:
-        """Unions two eclasses, ensuring the one highest in the block/region scope is preserved."""
+        """Unions two eclasses, merging their operands and results.
+        Returns True if the eclasses were merged, False if they were already the same."""
         a = self.eclass_union_find.find(a)
         b = self.eclass_union_find.find(b)
 
         if a == b:
             return False
 
-        # Meet the dataflow analysis states of the two e-classes
+        # Meet the analysis states of the two e-classes
         for analysis in self.analyses:
             a_lattice = analysis.get_lattice_element(a.result)
             b_lattice = analysis.get_lattice_element(b.result)
             a_lattice.meet(b_lattice)
 
-        # Helper logic to compute structural nesting depth
-        def get_scope_depth(op: Operation) -> int:
-            depth = 0
-            curr = op.parent_op()
-            while curr is not None:
-                depth += 1
-                curr = curr.parent_op()
-            return depth
-
-        # Choose the survivor based on type and scope rules
-        if isinstance(a, equivalence.ConstantClassOp):
-            if isinstance(b, equivalence.ConstantClassOp):
-                assert a.value == b.value, "Trying to union two different constant eclasses."
-            to_keep, to_replace = a, b
-            self.eclass_union_find.union_left(to_keep, to_replace)
-        elif isinstance(b, equivalence.ConstantClassOp):
+        # ---------------------------------------------------------
+        # Determine which class to keep based on priority rules
+        # ---------------------------------------------------------
+        if priority_right is True:
+            # A merges into B (B is kept)
             to_keep, to_replace = b, a
             self.eclass_union_find.union_left(to_keep, to_replace)
-        else:
-            # FIX: Compare lexical nesting depths. Lower depth = higher in structural scope.
-            depth_a = get_scope_depth(a)
-            depth_b = get_scope_depth(b)
 
-            if depth_a == 0:
-                to_keep, to_replace = b, a
-            elif depth_b == 0:
-                to_keep, to_replace = a, b
-            else:
-                if depth_a <= depth_b:
-                    to_keep, to_replace = a, b
-                else:
-                    to_keep, to_replace = b, a
-
-            # Use union_left to strictly preserve the chosen representative
+        elif priority_right is False:
+            # B merges into A (A is kept)
+            to_keep, to_replace = a, b
             self.eclass_union_find.union_left(to_keep, to_replace)
 
-        # Merge operands and clean
+        else:
+            # No explicit preference: Fallback to Constant rules or standard union
+            if isinstance(a, equivalence.ConstantClassOp):
+                if isinstance(b, equivalence.ConstantClassOp):
+                    assert a.value == b.value, (
+                        "Trying to union two different constant eclasses.",
+                    )
+                to_keep, to_replace = a, b
+                self.eclass_union_find.union_left(to_keep, to_replace)
+
+            elif isinstance(b, equivalence.ConstantClassOp):
+                to_keep, to_replace = b, a
+                self.eclass_union_find.union_left(to_keep, to_replace)
+
+            else:
+                self.eclass_union_find.union(a, b)
+                to_keep = self.eclass_union_find.find(a)
+                to_replace = b if to_keep is a else a
+        # ---------------------------------------------------------
+
+        # Operands need to be deduplicated because it can happen the same operand was
+        # used by different parent eclasses after their children were merged:
         new_operands = OrderedSet(to_keep.operands)
         new_operands.update(to_replace.operands)
 
         clean_operands = OrderedSet()
         for op in new_operands:
+            # If the operand is the result of ANY equivalence.class, discard it!
             if isinstance(op, OpResult) and isinstance(op.owner, equivalence.AnyClassOp):
                 continue
             clean_operands.add(op)
@@ -315,6 +317,8 @@ class EmatchFunctions(InterpreterFunctions):
         to_keep.operands = tuple(clean_operands)
 
         for use in to_replace.result.uses:
+            # uses are removed from the hashcons before the replacement is carried out.
+            # (because the replacement changes the operations which means we cannot find them in the hashcons anymore)
             if use.operation in self.known_ops:
                 self.known_ops.pop(use.operation)
 
@@ -322,7 +326,7 @@ class EmatchFunctions(InterpreterFunctions):
         rewriter.replace_op(to_replace, new_ops=[], new_results=to_keep.results)
         return True
 
-    def union_val(self, interpreter: Interpreter, a: SSAValue, b: SSAValue) -> None:
+    def union_val(self, interpreter: Interpreter, a: SSAValue, b: SSAValue, priority_right: bool = None) -> None:
         """
         Union two values into the same equivalence class.
         """
@@ -332,7 +336,7 @@ class EmatchFunctions(InterpreterFunctions):
         eclass_a = self.get_or_create_class(interpreter, a)
         eclass_b = self.get_or_create_class(interpreter, b)
 
-        if self.eclass_union(interpreter, eclass_a, eclass_b):
+        if self.eclass_union(interpreter, eclass_a, eclass_b, priority_right=priority_right):
             self.worklist.append(eclass_a)
 
     @impl(ematch.UnionOp)
@@ -379,6 +383,67 @@ class EmatchFunctions(InterpreterFunctions):
 
         return ()
 
+    def resolve_scope_dominance(self, op_a, op_b):
+        """
+        Evaluates the structural dominance between two operations.
+
+        Returns:
+            tuple: (Dominating Operation or None, Lowest Common Scope)
+        """
+
+        # Helper: Get the chain of scopes from the op up to the root
+        def get_scope_chain(op):
+            chain = []
+            # In xDSL/MLIR, this would be op.parent_block()
+            curr_scope = op.parent_region()
+
+            while curr_scope is not None:
+                chain.append(curr_scope)
+                # To go up a level, get the operation that owns this scope,
+                # then get THAT operation's parent scope.
+                curr_scope = curr_scope.parent_region() if curr_scope else None
+
+            return chain
+
+        # 1. Extract the full ancestry chains
+        chain_a = get_scope_chain(op_a)
+        chain_b = get_scope_chain(op_b)
+
+        # The immediate scope of each operation is the first item in their chain
+        scope_a = chain_a[0] if chain_a else None
+        scope_b = chain_b[0] if chain_b else None
+
+        # 2. Are they in the exact same scope?
+        if scope_a is not None and scope_a == scope_b:
+            # Both are in the same block. Depending on your engine, you might
+            # want to return the one that appears *earlier* in the block.
+            # Defaulting to returning A here as the dominator.
+            return op_a, scope_a
+
+        # 3. Does A dominate B?
+        # (Is A's scope an ancestor of B's scope?)
+        if scope_a in chain_b:
+            return op_a, scope_a
+
+        # 4. Does B dominate A?
+        # (Is B's scope an ancestor of A's scope?)
+        if scope_b in chain_a:
+            return op_b, scope_b
+
+        # 5. Parallel / Disjoint Scopes
+        # Find the Lowest Common Ancestor (LCA) scope.
+        # The first scope in A's chain that also exists in B's chain is the LCA.
+        lca_scope = None
+        for scope in chain_a:
+            if scope in chain_b:
+                lca_scope = scope
+                break
+
+        # Neither dominates, return None for the op, but return the shared scope
+        return None, lca_scope
+
+
+
     @impl(ematch.DedupRegionOp)
     def run_dedup_region(
             self,
@@ -386,8 +451,9 @@ class EmatchFunctions(InterpreterFunctions):
             op: ematch.DedupRegionOp,
             args: tuple[Any, ...]
     ) -> tuple[Any, ...]:
-        assert len(args) == 1
+        assert len(args) == 2
         inlined_ops = args[0]
+        op_location_to_inline = args[1]
         ops_added = []
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
@@ -398,7 +464,7 @@ class EmatchFunctions(InterpreterFunctions):
             if input_op.parent is None:
                 continue
 
-            # --- PHASE 1: Handle E-Classes ---
+            # # --- PHASE 1: Handle E-Classes ---
             if isinstance(input_op, equivalence.AnyClassOp):
                 try:
                     self.eclass_union_find.find(input_op)
@@ -429,8 +495,13 @@ class EmatchFunctions(InterpreterFunctions):
             existing = self.known_ops.get(input_op)
 
             if existing is not None and existing is not input_op:
-                for res_old, res_new in zip(input_op.results, existing.results):
-                    self.union_val(interpreter, res_old, res_new)
+                highest_op, highest_scope = self.resolve_scope_dominance(existing, op_location_to_inline)
+                if highest_op == existing:
+                    lowest_op = input_op
+                else:
+                    lowest_op = existing
+                for res_old, res_new in zip(lowest_op.results, highest_op.results):
+                    self.union_val(interpreter, res_old, res_new, priority_right= True)
 
                 rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
 

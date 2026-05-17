@@ -140,18 +140,18 @@ func.func @main() -> i32 {
       %original_eclass_val = ematch.get_class_result %original_res
       %original_eclass_op = pdl_interp.get_defining_op of %original_eclass_val : !pdl.value
       pdl_interp.replace %arg0 with (%1 : !pdl.value)
-      %3 = ematch.dedup_region of %inlined_ops
+      %3 = ematch.dedup_region of %inlined_ops in %arg0
       ematch.union %original_eclass_op : !pdl.operation, %new_eclass_range : !pdl.range<value>
       pdl_interp.finalize
     ^bb1:
       pdl_interp.replace %arg0 with (%1 : !pdl.value)
-      %4 = ematch.dedup_region of %inlined_ops
+      %4 = ematch.dedup_region of %inlined_ops in %arg0
       pdl_interp.finalize
     }
     pdl_interp.func @func_call_rewriter(%arg0: !pdl.operation, %region: !pdl_region.region, %type: !pdl.type) {
       ematch.add_cloned_eclasses of %region
       %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
-      %inlined_ops = ematch.dedup_region of %region_iterator
+      %inlined_ops = ematch.dedup_region of %region_iterator in %arg0
       pdl_interp.is_not_null %inlined_ops : !pdl.range<operation> -> ^bb0, ^bb1
     ^bb0:
       %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)

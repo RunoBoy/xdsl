@@ -133,7 +133,7 @@ func.func @main() -> i32 {
           pdl_interp.replace %arg0 with (%1 : !pdl.value)
 
           // 4. Hashcons the region (Phase 1 of your FSM)
-          ematch.dedup_region %inlined_ops
+          ematch.dedup_region %inlined_ops in %arg0
 
           // 5. Link the E-classes (Phase 2 of your FSM)
           ematch.union %y_op : !pdl.operation, %yielded_class_range : !pdl.range<value>
@@ -141,14 +141,14 @@ func.func @main() -> i32 {
           pdl_interp.finalize
        ^bb2:
           pdl_interp.replace %arg0 with (%1 : !pdl.value)
-          ematch.dedup_region %inlined_ops
+          ematch.dedup_region %inlined_ops in %arg0
           pdl_interp.finalize
     }
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
       ematch.add_cloned_eclasses of %region
       %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
-      %inlined_ops = ematch.dedup_region of %region_iterator
+      %inlined_ops = ematch.dedup_region of %region_iterator in %arg0
       pdl_interp.is_not_null %inlined_ops : !pdl.range<operation> -> ^bb0, ^bb1
     ^bb0:
       %execute_region = pdl_interp_region.create_operation_with_region "scf.execute_region"(%region : !pdl_region.region) -> (%type : !pdl.type)

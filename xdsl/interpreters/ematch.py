@@ -392,8 +392,10 @@ class EmatchFunctions(InterpreterFunctions):
         """
 
         # Helper: Get the chain of scopes from the op up to the root
-        def get_scope_chain(op):
+        def get_scope_chain(op, start_empty = False):
             chain = []
+            if start_empty:
+                chain.append(Region())
             # In xDSL/MLIR, this would be op.parent_block()
             curr_scope = op.parent_region()
 
@@ -407,7 +409,7 @@ class EmatchFunctions(InterpreterFunctions):
 
         # 1. Extract the full ancestry chains
         chain_a = get_scope_chain(op_a)
-        chain_b = get_scope_chain(op_b)
+        chain_b = get_scope_chain(op_b, start_empty=True)
 
         # The immediate scope of each operation is the first item in their chain
         scope_a = chain_a[0] if chain_a else None
@@ -441,8 +443,6 @@ class EmatchFunctions(InterpreterFunctions):
 
         # Neither dominates, return None for the op, but return the shared scope
         return None, lca_scope
-
-
 
     @impl(ematch.DedupRegionOp)
     def run_dedup_region(
@@ -496,20 +496,69 @@ class EmatchFunctions(InterpreterFunctions):
 
             if existing is not None and existing is not input_op:
                 highest_op, highest_scope = self.resolve_scope_dominance(existing, op_location_to_inline)
-                if highest_op == existing:
-                    lowest_op = input_op
+
+                if highest_op is None:
+                    if highest_scope is None:
+                        # Fallback if entirely disjoint (no LCA)
+                        self.known_ops[input_op] = input_op
+                        ops_added.append(input_op)
+                        continue
+
+                    # Parallel scopes. Lift a cloned operation to the LCA scope.
+                    new_op = existing.clone()
+
+                    # Determine which branching operation comes first in the block
+                    lca_block = highest_scope.blocks[0]
+                    rewriter.insert_op(new_op, InsertPoint.at_start(lca_block))
+
+                    # 1. Replace existing with new_op
+                    for res_old, res_new in zip(existing.results, new_op.results):
+                        self.union_val(interpreter, res_old, res_new, priority_right=True)
+                    rewriter.replace_op(existing, new_ops=[], new_results=new_op.results)
+
+                    # 2. Replace input_op with new_op
+                    for res_old, res_new in zip(input_op.results, new_op.results):
+                        self.union_val(interpreter, res_old, res_new, priority_right=True)
+                    rewriter.replace_op(input_op, new_ops=[], new_results=new_op.results)
+
+                    self.known_ops.pop(existing)
+                    self.known_ops[new_op] = new_op
+
+                    # Deduplicate eclass operands locally
+                    for res_new in new_op.results:
+                        for use in list(res_new.uses):
+                            if isinstance(use.operation, equivalence.AnyClassOp):
+                                unique_ops = list(dict.fromkeys(use.operation.operands))
+                                use.operation.operands = tuple(unique_ops)
+
+                elif highest_op == existing:
+                    # Existing safely dominates the new one. Merge allowed.
+                    for res_old, res_new in zip(input_op.results, existing.results):
+                        self.union_val(interpreter, res_old, res_new, priority_right=True)
+
+                    rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
+
+                    for res_new in existing.results:
+                        for use in list(res_new.uses):
+                            if isinstance(use.operation, equivalence.AnyClassOp):
+                                unique_ops = list(dict.fromkeys(use.operation.operands))
+                                use.operation.operands = tuple(unique_ops)
+
                 else:
-                    lowest_op = existing
-                for res_old, res_new in zip(lowest_op.results, highest_op.results):
-                    self.union_val(interpreter, res_old, res_new, priority_right= True)
+                    # Input op is actually HIGHER in scope than the existing one.
+                    for res_old, res_new in zip(existing.results, input_op.results):
+                        self.union_val(interpreter, res_old, res_new, priority_right=True)
 
-                rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
+                    rewriter.replace_op(existing, new_ops=[], new_results=input_op.results)
+                    self.known_ops.pop(existing, None)
+                    self.known_ops[input_op] = input_op
+                    ops_added.append(input_op)
 
-                for res_new in existing.results:
-                    for use in list(res_new.uses):
-                        if isinstance(use.operation, equivalence.AnyClassOp):
-                            unique_ops = list(dict.fromkeys(use.operation.operands))
-                            use.operation.operands = tuple(unique_ops)
+                    for res_new in input_op.results:
+                        for use in list(res_new.uses):
+                            if isinstance(use.operation, equivalence.AnyClassOp):
+                                unique_ops = list(dict.fromkeys(use.operation.operands))
+                                use.operation.operands = tuple(unique_ops)
             else:
                 self.known_ops[input_op] = input_op
                 ops_added.append(input_op)

@@ -36,7 +36,7 @@ func.func @f() -> i32 {
         %x_2 = func.call @g() : () -> i32
 
         // a = E-class(x')
-//        %a = equivalence.class %x_2 : i32
+        %a = equivalence.class %x_2 : i32
 
         // b = h(a)
         %b = func.call @h() : () -> i32
@@ -53,7 +53,7 @@ func.func @t() -> i32 {
         %x_2 = func.call @g() : () -> i32
 
         // a = E-class(x')
-//        %a = equivalence.class %x_2 : i32
+        %a = equivalence.class %x_2 : i32
 
         // b = h(a)
         %b = func.call @h() : () -> i32
@@ -128,39 +128,11 @@ func.func @main() -> i32 {
 
   builtin.module @rewriters {
      pdl_interp.func @execute_region_rewriter(%arg0: !pdl.operation) {
-      %0 = pdl_interp_region.get_region 0 of %arg0 : !pdl_region.region
-      %1, %inlined_ops = pdl_interp_region.inline_region %arg0 with (%0 : !pdl_region.region)
-      %2 = pdl_interp.get_defining_op of %1 : !pdl.value
-      pdl_interp.check_operation_name of %2 is "equivalence.class" -> ^bb0, ^bb1
-    // If an E-class is returned, we union the classes with the original execute_region E-class
-    ^bb0:
-      // Extract the E-class of the value that was just yielded by the inlined region
-      %new_eclass_val = ematch.get_class_result %1
-      %new_eclass_range = pdl_interp.create_range %new_eclass_val : !pdl.value
-
-      // Grab the result of the original execute_region
-      %original_res = pdl_interp.get_result 0 of %arg0
-      %original_eclass_val = ematch.get_class_result %original_res
-      // Now grab the E-class belonging to the original execute_region
-      %original_eclass_op = pdl_interp.get_defining_op of %original_eclass_val : !pdl.value
-
-      // Replace uses of the old operation with the newly inlined value
-      pdl_interp.replace %arg0 with (%1 : !pdl.value)
-
-      // Deduplicate the region and union the E-classes
-      ematch.dedup_region of %inlined_ops in %arg0
-      ematch.union %original_eclass_op : !pdl.operation, %new_eclass_range : !pdl.range<value>
-
-      pdl_interp.finalize
-    // If a regular operation is returned, we only deduplicate the region
-    ^bb1:
-      pdl_interp.replace %arg0 with (%1 : !pdl.value)
-      ematch.dedup_region of %inlined_ops in %arg0
       pdl_interp.finalize
     }
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
-//      ematch.add_cloned_eclasses of %region
+
       %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
       %inlined_ops = ematch.dedup_region of %region_iterator in %arg0
       pdl_interp.is_not_null %inlined_ops : !pdl.range<operation> -> ^bb0, ^bb1
@@ -171,8 +143,20 @@ func.func @main() -> i32 {
       %2 = pdl_interp.create_range %1 : !pdl.value
       ematch.union %arg0 : !pdl.operation, %2 : !pdl.range<value>
       pdl_interp.finalize
-    ^bb1:
       // Delete the execute_region
+      ^bb1:
+      // 1. Extract the yielded value from the completely deduplicated region
+      %yield_op = pdl_interp_region.get_operation() called "scf.yield" 0 of %region
+      %yield_val = pdl_interp.get_operand 0 of %yield_op
+
+      // 2. Union the original call (%arg0) directly with the yielded value
+      %yield_class = ematch.get_class_result %yield_val
+      %yield_range = pdl_interp.create_range %yield_class : !pdl.value
+      ematch.union %arg0 : !pdl.operation, %yield_range : !pdl.range<value>
+
+      // 3. ERASURE: Delete the ghost yield so it doesn't haunt the `rebuild` step
+      %clean = pdl_interp_region.delete_op_from_region(%yield_op : !pdl.operation) of %region
+
       pdl_interp.finalize
     }
 

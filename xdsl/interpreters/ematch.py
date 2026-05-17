@@ -220,19 +220,32 @@ class EmatchFunctions(InterpreterFunctions):
         """
         Get the equivalence class for a value, creating one if it doesn't exist.
         """
+        eclass_op = None
+        insertpoint = None
+
         if isinstance(val, OpResult):
-            # If val is defined by a ClassOp, return it
+            # If val is defined by a ClassOp, mark it
             if isinstance(val.owner, equivalence.AnyClassOp):
-                return val.owner
-            insertpoint = InsertPoint.before(val.owner)
+                eclass_op = val.owner
+            else:
+                insertpoint = InsertPoint.before(val.owner)
         else:
             assert isinstance(val.owner, Block)
             insertpoint = InsertPoint.at_start(val.owner)
 
-        # If val has one use and it's a ClassOp, return it
-        if (user := val.get_user_of_unique_use()) is not None:
-            if isinstance(user, equivalence.AnyClassOp):
-                return user
+        # If val has one use and it's a ClassOp, mark it
+        if eclass_op is None:
+            if (user := val.get_user_of_unique_use()) is not None:
+                if isinstance(user, equivalence.AnyClassOp):
+                    eclass_op = user
+
+        # Ensure the pre-existing ClassOp is tracked in union_find!
+        if eclass_op is not None:
+            try:
+                self.eclass_union_find.find(eclass_op)
+            except KeyError:
+                self.eclass_union_find.add(eclass_op)
+            return eclass_op
 
         # If the value is not part of an eclass yet, create one
         rewriter = PDLInterpFunctions.get_rewriter(interpreter)
@@ -241,9 +254,12 @@ class EmatchFunctions(InterpreterFunctions):
         rewriter.insert_op(eclass_op, insertpoint)
         self.eclass_union_find.add(eclass_op)
 
-        # Replace uses of val with the eclass result (except in the eclass itself)
+        # CRITICAL FIX: Replace uses of val with the eclass result,
+        # but NEVER replace operands of ANY e-class operation to avoid nested e-classes.
         rewriter.replace_uses_with_if(
-            val, eclass_op.result, lambda use: use.operation is not eclass_op
+            val,
+            eclass_op.result,
+            lambda use: not isinstance(use.operation, equivalence.AnyClassOp)
         )
 
         return eclass_op

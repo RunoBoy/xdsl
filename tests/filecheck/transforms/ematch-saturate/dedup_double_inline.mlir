@@ -71,8 +71,7 @@ func.func @main() -> i32 {
 
         %z = func.call @t() : () -> i32
 
-        %y = arith.constant 0 : i32
-        equivalence.yield %y : i32
+        equivalence.yield %r : i32
     }
 
     return %res_1 : i32
@@ -132,7 +131,7 @@ func.func @main() -> i32 {
     }
 
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
-
+      ematch.add_cloned_eclasses of %region
       %region_iterator = pdl_interp_region.region_iterator(%region : !pdl_region.region)
       %inlined_ops = ematch.dedup_region of %region_iterator in %arg0
       pdl_interp.is_not_null %inlined_ops : !pdl.range<operation> -> ^bb0, ^bb1

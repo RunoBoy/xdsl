@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 from ordered_set import OrderedSet
@@ -9,16 +8,15 @@ from xdsl.analysis.dataflow import ChangeResult, ProgramPoint
 from xdsl.analysis.sparse_analysis import Lattice, SparseForwardDataFlowAnalysis
 from xdsl.dialects import ematch, equivalence
 from xdsl.dialects.builtin import SymbolRefAttr
-from xdsl.dialects.pdl import RangeType
 from xdsl.interpreter import Interpreter, InterpreterFunctions, impl, register_impls
 from xdsl.interpreters.pdl_interp import PDLInterpFunctions
 from xdsl.ir import Block, Operation, OpResult, SSAValue, Region
 from xdsl.rewriter import InsertPoint
+from xdsl.traits import IsTerminator
 from xdsl.transforms.common_subexpression_elimination import KnownOps
 from xdsl.utils.disjoint_set import DisjointSet
 from xdsl.utils.exceptions import InterpretationError
 from xdsl.utils.hints import isa
-from xdsl.traits import IsTerminator
 
 
 @register_impls
@@ -29,7 +27,6 @@ class EmatchFunctions(InterpreterFunctions):
     known_ops: KnownOps = field(default_factory=KnownOps)
     """Used for hashconsing operations. When new operations are created, if they are identical to an existing operation,
     the existing operation is reused instead of creating a new one."""
-
 
     eclass_union_find: DisjointSet[equivalence.AnyClassOp] = field(
         default_factory=lambda: DisjointSet[equivalence.AnyClassOp]()
@@ -84,10 +81,10 @@ class EmatchFunctions(InterpreterFunctions):
 
     @impl(ematch.MergeEClassOp)
     def run_merge_eclasses(
-        self,
-        interpreter: Interpreter,
-        op: ematch.MergeEClassOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: ematch.MergeEClassOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
         input_region = args[0]
@@ -102,10 +99,10 @@ class EmatchFunctions(InterpreterFunctions):
 
     @impl(ematch.GetClassValsOp)
     def run_get_class_vals(
-        self,
-        interpreter: Interpreter,
-        op: ematch.GetClassValsOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: ematch.GetClassValsOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         """
         Take a value and return all values in its equivalence class.
@@ -131,10 +128,10 @@ class EmatchFunctions(InterpreterFunctions):
 
     @impl(ematch.GetClassRepresentativeOp)
     def run_get_class_representative(
-        self,
-        interpreter: Interpreter,
-        op: ematch.GetClassRepresentativeOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: ematch.GetClassRepresentativeOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         """
         Get one of the values in the equivalence class of v.
@@ -158,10 +155,10 @@ class EmatchFunctions(InterpreterFunctions):
 
     @impl(ematch.GetClassResultOp)
     def run_get_class_result(
-        self,
-        interpreter: Interpreter,
-        op: ematch.GetClassResultOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: ematch.GetClassResultOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         """
         Get the equivalence.class result corresponding to the equivalence class of v.
@@ -186,10 +183,10 @@ class EmatchFunctions(InterpreterFunctions):
 
     @impl(ematch.GetClassResultsOp)
     def run_get_class_results(
-        self,
-        interpreter: Interpreter,
-        op: ematch.GetClassResultsOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: ematch.GetClassResultsOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         """
         Get the equivalence.class results corresponding to the equivalence classes
@@ -217,7 +214,7 @@ class EmatchFunctions(InterpreterFunctions):
         return (tuple(results),)
 
     def get_or_create_class(
-        self, interpreter: Interpreter, val: SSAValue
+            self, interpreter: Interpreter, val: SSAValue
     ) -> equivalence.AnyClassOp:
         """
         Get the equivalence class for a value, creating one if it doesn't exist.
@@ -359,10 +356,10 @@ class EmatchFunctions(InterpreterFunctions):
 
     @impl(ematch.UnionOp)
     def run_union(
-        self,
-        interpreter: Interpreter,
-        op: ematch.UnionOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: ematch.UnionOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         """
         Merge two values, an operation and a value range, or two value ranges
@@ -401,7 +398,7 @@ class EmatchFunctions(InterpreterFunctions):
 
         return ()
 
-    def resolve_scope_dominance(self, op_a, op_b, start_empty = True):
+    def resolve_scope_dominance(self, op_a, op_b, start_empty=True):
         """
         Evaluates the structural dominance between two operations.
 
@@ -410,7 +407,7 @@ class EmatchFunctions(InterpreterFunctions):
         """
 
         # Helper: Get the chain of scopes from the op up to the root
-        def get_scope_chain(op, start_empty = False):
+        def get_scope_chain(op, start_empty=False):
             chain = []
 
             # When adding a new region to an E-graph, we use the location of the location of the operation where it
@@ -462,6 +459,81 @@ class EmatchFunctions(InterpreterFunctions):
         # Neither dominates, return None for the op, but return the shared scope
         return None, lca_scope
 
+    def _deduplicate_single_op(
+            self,
+            interpreter: Interpreter,
+            input_op: Operation,
+            dominance_target: Operation,
+            start_empty: bool
+    ) -> tuple[Operation, bool]:
+        """
+        Core logic to deduplicate an operation against the E-graph's known operations.
+        Returns: (Surviving Operation, Boolean indicating if input_op was kept/added)
+        """
+        existing = self.known_ops.get(input_op)
+        rewriter = PDLInterpFunctions.get_rewriter(interpreter)
+
+        # No duplicate found
+        if existing is None or existing is input_op:
+            self.known_ops[input_op] = input_op
+            return input_op, True
+
+        highest_op, highest_scope = self.resolve_scope_dominance(existing, dominance_target, start_empty=start_empty)
+
+        # Helper function to clean up duplicate operands after RAUW
+        def cleanup_eclass_operands(results):
+            for res in results:
+                for use in list(res.uses):
+                    if isinstance(use.operation, equivalence.AnyClassOp):
+                        # dict.fromkeys perfectly preserves order while removing duplicates
+                        use.operation.operands = tuple(dict.fromkeys(use.operation.operands))
+
+        # Case 1: Disjoint scopes (No strict dominance)
+        if highest_op is None:
+            if highest_scope is None:
+                # Fallback if entirely disjoint (no LCA)
+                self.known_ops[input_op] = input_op
+                return input_op, True
+
+            # Lift a cloned operation to the LCA scope
+            new_op = existing.clone()
+            rewriter.insert_op(new_op, InsertPoint.at_start(highest_scope.blocks[0]))
+
+            # Replace existing with new_op
+            for res_old, res_new in zip(existing.results, new_op.results):
+                self.union_val(interpreter, res_old, res_new, priority_right=True)
+            rewriter.replace_op(existing, new_ops=[], new_results=new_op.results)
+
+            # Replace input_op with new_op
+            for res_old, res_new in zip(input_op.results, new_op.results):
+                self.union_val(interpreter, res_old, res_new, priority_right=True)
+            rewriter.replace_op(input_op, new_ops=[], new_results=new_op.results)
+
+            self.known_ops.pop(existing)
+            self.known_ops[new_op] = new_op
+            return new_op, False  # new_op survived, input_op was destroyed
+
+        # Case 2: The existing operation dominates
+        elif highest_op == existing:
+            for res_old, res_new in zip(input_op.results, existing.results):
+                self.union_val(interpreter, res_old, res_new, priority_right=True)
+
+            # Replaces input_op (acts exactly like erase_op if it has no uses yet)
+            rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
+            cleanup_eclass_operands(existing.results)
+            return existing, False
+
+        # Case 3: The new input_op dominates
+        else:
+            for res_old, res_new in zip(existing.results, input_op.results):
+                self.union_val(interpreter, res_old, res_new, priority_right=True)
+
+            rewriter.replace_op(existing, new_ops=[], new_results=input_op.results)
+            self.known_ops.pop(existing)
+            self.known_ops[input_op] = input_op
+            cleanup_eclass_operands(input_op.results)
+            return input_op, True
+
     @impl(ematch.DedupRegionOp)
     def run_dedup_region(
             self,
@@ -473,93 +545,19 @@ class EmatchFunctions(InterpreterFunctions):
         Deduplicate every operation in a region you want to insert
         """
         assert len(args) == 2
-        inlined_ops = args[0]
-        op_location_to_inline = args[1]
-
-        # Keep track of the operations that are added, since if no new operations are added, nothing has to be created
+        inlined_ops, op_location_to_inline = args[0], args[1]
         ops_added = []
-        rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
         for input_op in inlined_ops:
-
-            # if the input operation is an E-class, it's already added to the E-graph during the
-            if isinstance(input_op, equivalence.AnyClassOp):
+            if isinstance(input_op, equivalence.AnyClassOp) or input_op.has_trait(IsTerminator):
                 continue
 
-            #  if the operation is a terminator, skip it
-            if input_op.has_trait(IsTerminator):
-                continue
+            # Hand off to the common deduplication engine
+            _, was_added = self._deduplicate_single_op(
+                interpreter, input_op, op_location_to_inline, start_empty=True
+            )
 
-            # if it's a normal operation, deduplicate it and replace uses
-            existing = self.known_ops.get(input_op)
-
-            # An equivalent operation exists already
-            if existing is not None and existing is not input_op:
-
-                # Check which operation is the highest in scope
-                highest_op, highest_scope = self.resolve_scope_dominance(existing, op_location_to_inline)
-
-                # If there is no operation that dominates the other, we need to lift one of them and remove the other
-                if highest_op is None:
-
-                    # Fallback if entirely disjoint (no LCA)
-                    if highest_scope is None:
-                        self.known_ops[input_op] = input_op
-                        ops_added.append(input_op)
-                        continue
-
-                    #Lift a cloned operation to the LCA scope.
-                    new_op = existing.clone()
-                    lca_block = highest_scope.blocks[0]
-                    rewriter.insert_op(new_op, InsertPoint.at_start(lca_block))
-
-
-                    # 1. Replace existing with new_op
-                    for res_old, res_new in zip(existing.results, new_op.results):
-                        self.union_val(interpreter, res_old, res_new, priority_right=True)
-                    rewriter.replace_op(existing, new_ops=[], new_results=new_op.results)
-
-                    # 2. Replace input_op with new_op
-                    for res_old, res_new in zip(input_op.results, new_op.results):
-                        self.union_val(interpreter, res_old, res_new, priority_right=True)
-                    rewriter.replace_op(input_op, new_ops=[], new_results=new_op.results)
-
-                    # 3. Replace the known operation
-                    self.known_ops.pop(existing)
-                    self.known_ops[new_op] = new_op
-
-                # If the existing operation is higher in scope, we can replace the new operation safely
-                elif highest_op == existing:
-                    for res_old, res_new in zip(input_op.results, existing.results):
-                        self.union_val(interpreter, res_old, res_new, priority_right=True)
-
-                    rewriter.replace_op(input_op, new_ops=[], new_results=existing.results)
-
-                    for res_new in existing.results:
-                        for use in list(res_new.uses):
-                            if isinstance(use.operation, equivalence.AnyClassOp):
-                                unique_ops = list(dict.fromkeys(use.operation.operands))
-                                use.operation.operands = tuple(unique_ops)
-
-                # If the existing operation is lower in scope, replace that value with the new inserted operation
-                else:
-                    for res_old, res_new in zip(existing.results, input_op.results):
-                        self.union_val(interpreter, res_old, res_new, priority_right=True)
-
-                    rewriter.replace_op(existing, new_ops=[], new_results=input_op.results)
-                    self.known_ops.pop(existing)
-                    self.known_ops[input_op] = input_op
-                    ops_added.append(input_op)
-
-                    for res_new in input_op.results:
-                        for use in list(res_new.uses):
-                            if isinstance(use.operation, equivalence.AnyClassOp):
-                                unique_ops = list(dict.fromkeys(use.operation.operands))
-                                use.operation.operands = tuple(unique_ops)
-
-            # If no equivalent operation exists, add it to the known_ops of the E-graph
-            else:
-                self.known_ops[input_op] = input_op
+            if was_added:
                 ops_added.append(input_op)
 
         # EXACTLY 0 means all computations were perfectly deduplicated
@@ -576,45 +574,17 @@ class EmatchFunctions(InterpreterFunctions):
     ) -> tuple[Any, ...]:
         """
         Check if the operation already exists in the hashcons.
-
-        If an equivalent operation exists, erase the input operation and return
-        the existing one. Otherwise, insert the operation into the hashcons and
-        return it.
         """
         assert len(args) == 1
         input_op = args[0]
         assert isinstance(input_op, Operation)
 
-        # Check if an equivalent operation exists in hashcons
-        existing = self.known_ops.get(input_op)
-        rewriter = PDLInterpFunctions.get_rewriter(interpreter)
+        # Hand off to the common deduplication engine
+        surviving_op, _ = self._deduplicate_single_op(
+            interpreter, input_op, input_op, start_empty=False
+        )
 
-        if existing is not None and existing is not input_op:
-            highest_op, highest_scope = self.resolve_scope_dominance(existing, input_op, start_empty=False)
-            if highest_op == existing:
-                rewriter.erase_op(input_op)
-                return (existing,)
-            else:
-                for res_old, res_new in zip(existing.results, input_op.results):
-                    self.union_val(interpreter, res_old, res_new, priority_right=True)
-
-                rewriter.replace_op(existing, new_ops=[], new_results=input_op.results)
-                self.known_ops.pop(existing)
-                self.known_ops[input_op] = input_op
-
-                # FIX: Clean up duplicate operands introduced by the replace_op RAUW step
-                for res_new in input_op.results:
-                    for use in list(res_new.uses):
-                        if isinstance(use.operation, equivalence.AnyClassOp):
-                            unique_ops = list(dict.fromkeys(use.operation.operands))
-                            use.operation.operands = tuple(unique_ops)
-
-                return (input_op,)
-
-        # No duplicate found, insert into hashcons
-        self.known_ops[input_op] = input_op
-        return (input_op,)
-
+        return (surviving_op,)
 
     def repair(self, interpreter: Interpreter, eclass: equivalence.AnyClassOp):
         """
@@ -726,7 +696,7 @@ class EmatchFunctions(InterpreterFunctions):
                         # Find the eclass for this result and add to worklist
                         if (op_use := op.results[0].first_use) is not None:
                             if isinstance(
-                                eclass_op := op_use.operation, equivalence.AnyClassOp
+                                    eclass_op := op_use.operation, equivalence.AnyClassOp
                             ):
                                 self.worklist.append(eclass_op)
                         break  # Only need to add to worklist once per operation

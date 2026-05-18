@@ -1,18 +1,17 @@
 // RUN: xdsl-opt %s -p ematch-saturate | filecheck %s
 
-// CHECK: func.func @impl() -> i32 {
-// CHECK-NEXT:     %0 = equivalence.graph : () -> i32 {
+// CHECK: %0 = equivalence.graph : () -> i32 {
 // CHECK-NEXT:       %ifelse = equivalence.class %1, %ifelse_1 : i32
 // CHECK-NEXT:       %1 = arith.constant 5 : i32
 // CHECK-NEXT:       %c0 = arith.constant 0 : i32
-// CHECK-NEXT:       %c1 = arith.constant 1 : i32
+// CHECK-NEXT:       %c1 = equivalence.class %c1_1, %div : i32
+// CHECK-NEXT:       %c1_1 = arith.constant 1 : i32
 // CHECK-NEXT:       %c2 = arith.constant 2 : i32
-// CHECK-NEXT:       %2 = arith.shli %div, %div : i32
+// CHECK-NEXT:       %2 = arith.shli %c1, %c1 : i32
 // CHECK-NEXT:       %x = equivalence.class %x_1, %2 : i32
-// CHECK-NEXT:       %x_1 = arith.muli %div, %c2 : i32
-// CHECK-NEXT:       %div = equivalence.class %div_1, %c1 : i32
-// CHECK-NEXT:       %div_1 = arith.divui %x, %c2 : i32
-// CHECK-NEXT:       %cond = arith.cmpi ne, %div, %c0 : i32
+// CHECK-NEXT:       %x_1 = arith.muli %c1, %c2 : i32
+// CHECK-NEXT:       %div = arith.divui %x, %c2 : i32
+// CHECK-NEXT:       %cond = arith.cmpi ne, %c1, %c0 : i32
 // CHECK-NEXT:       %ifelse_1 = scf.if %cond -> (i32) {
 // CHECK-NEXT:         scf.yield %ifelse : i32
 // CHECK-NEXT:       } else {
@@ -114,10 +113,8 @@ pdl_interp.func @matcher(%arg0: !pdl.operation) {
         pdl_interp.record_match @rewriters::@if_true_rewriter(%arg0, %5: !pdl.operation, !pdl.type)  : benefit(2), loc([]) -> ^bb0
     } -> ^bb_fail
   ^bb_execute_region:
-        pdl_interp_region.debug_print "check for execute_region"
     pdl_interp.check_operation_name of %arg0 is "scf.execute_region" -> ^bb_ex1, ^bb_fail
   ^bb_ex1:
-    pdl_interp_region.debug_print "execute_region found"
     pdl_interp.record_match @rewriters::@execute_region_rewriter(%arg0 : !pdl.operation) : benefit(1) -> ^bb_fail
 }
 

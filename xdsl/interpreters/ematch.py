@@ -401,7 +401,7 @@ class EmatchFunctions(InterpreterFunctions):
 
         return ()
 
-    def resolve_scope_dominance(self, op_a, op_b):
+    def resolve_scope_dominance(self, op_a, op_b, start_empty = True):
         """
         Evaluates the structural dominance between two operations.
 
@@ -427,7 +427,7 @@ class EmatchFunctions(InterpreterFunctions):
 
         # 1. Extract the full ancestry chains
         chain_a = get_scope_chain(op_a)
-        chain_b = get_scope_chain(op_b, start_empty=True)
+        chain_b = get_scope_chain(op_b, start_empty=start_empty)
 
         # The immediate scope of each operation is the first item in their chain
         scope_a = chain_a[0] if chain_a else None
@@ -548,7 +548,7 @@ class EmatchFunctions(InterpreterFunctions):
                         self.union_val(interpreter, res_old, res_new, priority_right=True)
 
                     rewriter.replace_op(existing, new_ops=[], new_results=input_op.results)
-                    self.known_ops.pop(existing, None)
+                    self.known_ops.pop(existing)
                     self.known_ops[input_op] = input_op
                     ops_added.append(input_op)
 
@@ -570,10 +570,10 @@ class EmatchFunctions(InterpreterFunctions):
 
     @impl(ematch.DedupOp)
     def run_dedup(
-        self,
-        interpreter: Interpreter,
-        op: ematch.DedupOp,
-        args: tuple[Any, ...],
+            self,
+            interpreter: Interpreter,
+            op: ematch.DedupOp,
+            args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         """
         Check if the operation already exists in the hashcons.
@@ -588,12 +588,29 @@ class EmatchFunctions(InterpreterFunctions):
 
         # Check if an equivalent operation exists in hashcons
         existing = self.known_ops.get(input_op)
+        rewriter = PDLInterpFunctions.get_rewriter(interpreter)
 
         if existing is not None and existing is not input_op:
-            # Deduplicate: erase the new op and return existing
-            rewriter = PDLInterpFunctions.get_rewriter(interpreter)
-            rewriter.erase_op(input_op)
-            return (existing,)
+            highest_op, highest_scope = self.resolve_scope_dominance(existing, input_op, start_empty=False)
+            if highest_op == existing:
+                rewriter.erase_op(input_op)
+                return (existing,)
+            else:
+                for res_old, res_new in zip(existing.results, input_op.results):
+                    self.union_val(interpreter, res_old, res_new, priority_right=True)
+
+                rewriter.replace_op(existing, new_ops=[], new_results=input_op.results)
+                self.known_ops.pop(existing)
+                self.known_ops[input_op] = input_op
+
+                # FIX: Clean up duplicate operands introduced by the replace_op RAUW step
+                for res_new in input_op.results:
+                    for use in list(res_new.uses):
+                        if isinstance(use.operation, equivalence.AnyClassOp):
+                            unique_ops = list(dict.fromkeys(use.operation.operands))
+                            use.operation.operands = tuple(unique_ops)
+
+                return (input_op,)
 
         # No duplicate found, insert into hashcons
         self.known_ops[input_op] = input_op

@@ -148,7 +148,7 @@ func.func @main() -> i32 {
     pdl_interp.func @func_call_rewriter(%arg0 : !pdl.operation, %region : !pdl_region.region, %type : !pdl.type) {
       // Add the E-classes from the cloned region to the E-graph. Either these are new E-classes, or they will be
       // combined with existing E-classes
-      ematch.add_cloned_eclasses of %region
+      ematch.merge_egraph of %region
 
       // Iterate over the region and deduplicate existing operations, if no new operations are found, a null value is
       // returned and bb1 will be executed

@@ -143,11 +143,11 @@ class DedupOp(IRDLOperation):
         )
 
 @irdl_op_definition
-class AddClonedEClasses(IRDLOperation):
+class MergeEClassOp(IRDLOperation):
     """
     Given a cloned region, add its E-classes to the Union-Find
     """
-    name = "ematch.add_cloned_eclasses"
+    name = "ematch.merge_egraph"
     input_region = operand_def(RegionType)
 
     assembly_format = "`of ` $input_region attr-dict"
@@ -191,6 +191,6 @@ Ematch = Dialect(
         UnionOp,
         DedupOp,
         DedupRegionOp,
-        AddClonedEClasses,
+        MergeEClassOp,
     ],
 )

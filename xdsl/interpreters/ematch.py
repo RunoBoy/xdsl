@@ -82,11 +82,11 @@ class EmatchFunctions(InterpreterFunctions):
             else:
                 self.eclass_union_find.add(op)
 
-    @impl(ematch.AddClonedEClasses)
-    def run_add_cloned_eclasses(
+    @impl(ematch.MergeEClassOp)
+    def run_merge_eclasses(
         self,
         interpreter: Interpreter,
-        op: ematch.GetClassValsOp,
+        op: ematch.MergeEClassOp,
         args: tuple[Any, ...],
     ) -> tuple[Any, ...]:
         assert len(args) == 1
@@ -483,7 +483,6 @@ class EmatchFunctions(InterpreterFunctions):
         for input_op in inlined_ops:
 
             # if the input operation is an E-class, it's already added to the E-graph during the
-            # run_add_cloned_eclasses() pass
             if isinstance(input_op, equivalence.AnyClassOp):
                 continue
 

@@ -503,7 +503,7 @@ class EmatchFunctions(InterpreterFunctions):
             for res_old, res_new in zip(existing.results, new_op.results):
                 self.union_val(interpreter, res_old, res_new, priority_right=True)
             rewriter.replace_op(existing, new_ops=[], new_results=new_op.results)
-
+            cleanup_eclass_operands(new_op.results)
             # Replace input_op with new_op
             for res_old, res_new in zip(input_op.results, new_op.results):
                 self.union_val(interpreter, res_old, res_new, priority_right=True)
@@ -511,6 +511,7 @@ class EmatchFunctions(InterpreterFunctions):
 
             self.known_ops.pop(existing)
             self.known_ops[new_op] = new_op
+            cleanup_eclass_operands(new_op.results)
             return new_op, False  # new_op survived, input_op was destroyed
 
         # Case 2: The existing operation dominates
@@ -626,8 +627,8 @@ class EmatchFunctions(InterpreterFunctions):
         to_merge: list[tuple[Operation, Operation]] = []
 
         for op1 in user_ops:
-            # Skip eclass operations themselves
-            if isinstance(op1, equivalence.AnyClassOp):
+            # Skip eclass operations and terminators themselves
+            if isinstance(op1, equivalence.AnyClassOp) or op1.has_trait(IsTerminator):
                 continue
 
             op2 = unique_parents.get(op1)

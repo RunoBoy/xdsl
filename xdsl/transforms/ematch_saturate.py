@@ -49,7 +49,6 @@ class EmatchSaturatePass(ModulePass):
         pdl_interp_functions = PDLInterpFunctions()
         ematch_functions = EmatchFunctions()
         PDLInterpFunctions.set_ctx(interpreter, ctx)
-        ematch_functions.populate_known_ops(graph)
         interpreter.register_implementations(ematch_functions)
         interpreter.register_implementations(pdl_interp_functions)
 
@@ -58,6 +57,7 @@ class EmatchSaturatePass(ModulePass):
             ematch_functions.modification_handler
         )
         pdl_interp_functions.set_rewriter(interpreter, rewriter)
+        ematch_functions.populate_known_ops(interpreter, graph)
 
         for _i in range(self.max_iterations):
             for root in graph.walk():

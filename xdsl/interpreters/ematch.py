@@ -64,20 +64,34 @@ class EmatchFunctions(InterpreterFunctions):
         if op not in self.known_ops:
             self.known_ops[op] = op
 
-    def populate_known_ops(self, outer_op: Operation) -> None:
+    def populate_known_ops(self, interpreter: Interpreter, outer_op: Operation) -> None:
         """
-        Populates the known_ops dictionary by traversing the module.
+        Populates the known_ops dictionary by traversing the module and actively
+        deduplicating operations using the scope-aware LCA engine.
 
         Args:
+            interpreter: The PDL Interpreter instance.
             outer_op: The operation containing all operations to be added to known_ops.
         """
-        # Walk through all operations in the module
-        for op in outer_op.walk():
+        # Convert walk to a list since we are mutating the IR (hoisting/erasing) during iteration
+        for op in list(outer_op.walk()):
             # Skip eclasses instances
-            if not isinstance(op, equivalence.AnyClassOp):
-                self.known_ops[op] = op
-            else:
+            if isinstance(op, equivalence.AnyClassOp):
                 self.eclass_union_find.add(op)
+                continue
+
+            # Skip terminators
+            if op.has_trait(IsTerminator):
+                continue
+
+            # Skip region-bearing operations (like scf.if or equivalence.graph).
+            # Deduplicating entire regions structurally is too aggressive for this phase.
+            if len(op.regions) > 0:
+                self.known_ops[op] = op
+                continue
+
+            # Feed the operation through the SRE deduplication engine!
+            self._deduplicate_single_op(interpreter, op, op, start_empty=False)
 
     @impl(ematch.MergeEClassOp)
     def run_merge_eclasses(

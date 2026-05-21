@@ -24,12 +24,10 @@ func.func @main(%cond : i1, %a : f32, %b : f32) -> f32 {
     %res = equivalence.graph : () -> f32 {
         %if = scf.if %cond -> (f32) {
             %sum = arith.addf %a, %b : f32
-            // Corrected call syntax
             %x = func.call @func_a(%sum) : (f32) -> f32
             scf.yield %x : f32
         } else {
             %sum_comm = arith.addf %b, %a : f32
-            // Corrected call syntax
             %y = func.call @func_b(%sum_comm) : (f32) -> f32
             scf.yield %y : f32
         }

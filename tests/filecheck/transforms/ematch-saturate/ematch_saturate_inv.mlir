@@ -14,88 +14,82 @@
   }
 
   func.func @matrix_inverse_4x4(%arg0: tensor<4x4xf32>) -> tensor<4x4xf32> {
-    %0 = equivalence.graph : () -> (tensor<4x4xf32>) {
-      %c0 = arith.constant 0 : index
-      %c1 = arith.constant 1 : index
-      %c4 = arith.constant 4 : index
-      %cst = arith.constant 1.000000e+00 : f32
-      %cst_0 = arith.constant 0.000000e+00 : f32
+  %0 = equivalence.graph : () -> (tensor<4x4xf32>) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c4 = arith.constant 4 : index
+    %cst = arith.constant 1.000000e+00 : f32
+    %cst_0 = arith.constant 0.000000e+00 : f32
 
-      // 1. Uninitialized pure tensors (no memory side-effects)
-      %alloc = tensor.empty() : tensor<4x4xf32>
-      %alloc_1 = tensor.empty() : tensor<4x4xf32>
+    // 1. Single allocation for the inverse matrix (starts as identity)
+    %alloc = tensor.empty() : tensor<4x4xf32>
 
-      // 2. Loop 1: Initialize the matrices using iter_args to pass the updated tensors
-      %init_alloc, %init_alloc_1 = scf.for %arg1 = %c0 to %c4 step %c1 iter_args(%t_alloc = %alloc, %t_alloc_1 = %alloc_1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
-        %new_alloc, %new_alloc_1 = scf.for %arg2 = %c0 to %c4 step %c1 iter_args(%t_alloc_inner = %t_alloc, %t_alloc_1_inner = %t_alloc_1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
-
-          %1 = arith.cmpi eq, %arg1, %arg2 : index
-          %2 = arith.select %1, %cst, %cst_0 : f32
-          %3 = tensor.insert %2 into %t_alloc_inner[%arg1, %arg2] : tensor<4x4xf32>
-
-          %4 = tensor.extract %arg0[%arg1, %arg2] : tensor<4x4xf32>
-          %5 = tensor.insert %4 into %t_alloc_1_inner[%arg1, %arg2] : tensor<4x4xf32>
-
-          scf.yield %3, %5 : tensor<4x4xf32>, tensor<4x4xf32>
-        }
-        scf.yield %new_alloc, %new_alloc_1 : tensor<4x4xf32>, tensor<4x4xf32>
+    // 2. Loop 1: Initialize ONLY the identity matrix.
+    // We don't need to copy %arg0 here anymore.
+    %init_alloc = scf.for %arg1 = %c0 to %c4 step %c1 iter_args(%t_alloc = %alloc) -> (tensor<4x4xf32>) {
+      %new_alloc = scf.for %arg2 = %c0 to %c4 step %c1 iter_args(%t_alloc_inner = %t_alloc) -> (tensor<4x4xf32>) {
+        %1 = arith.cmpi eq, %arg1, %arg2 : index
+        %2 = arith.select %1, %cst, %cst_0 : f32
+        %3 = tensor.insert %2 into %t_alloc_inner[%arg1, %arg2] : tensor<4x4xf32>
+        scf.yield %3 : tensor<4x4xf32>
       }
-
-      // 3. Loop 2: Gauss-Jordan Elimination
-      %final_alloc, %final_alloc_1 = scf.for %arg1 = %c0 to %c4 step %c1 iter_args(%outer_alloc = %init_alloc, %outer_alloc_1 = %init_alloc_1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
-        %1 = tensor.extract %outer_alloc_1[%arg1, %arg1] : tensor<4x4xf32>
-
-        // Normalize the pivot row
-        %norm_alloc, %norm_alloc_1 = scf.for %arg2 = %c0 to %c4 step %c1 iter_args(%norm_a = %outer_alloc, %norm_a1 = %outer_alloc_1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
-          %2 = tensor.extract %norm_a1[%arg1, %arg2] : tensor<4x4xf32>
-          %3 = arith.divf %2, %1 : f32
-          %4 = tensor.insert %3 into %norm_a1[%arg1, %arg2] : tensor<4x4xf32>
-
-          %5 = tensor.extract %norm_a[%arg1, %arg2] : tensor<4x4xf32>
-          %6 = arith.divf %5, %1 : f32
-          %7 = tensor.insert %6 into %norm_a[%arg1, %arg2] : tensor<4x4xf32>
-
-          scf.yield %7, %4 : tensor<4x4xf32>, tensor<4x4xf32>
-        }
-
-        // Eliminate other rows
-        %elim_alloc, %elim_alloc_1 = scf.for %arg2 = %c0 to %c4 step %c1 iter_args(%elim_a = %norm_alloc, %elim_a1 = %norm_alloc_1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
-          %2 = arith.cmpi ne, %arg2, %arg1 : index
-
-          // scf.if must now return the tensors so they aren't lost if the branch is taken
-          %res_a, %res_a1 = scf.if %2 -> (tensor<4x4xf32>, tensor<4x4xf32>) {
-            %3 = tensor.extract %elim_a1[%arg2, %arg1] : tensor<4x4xf32>
-
-            %sub_alloc, %sub_alloc_1 = scf.for %arg3 = %c0 to %c4 step %c1 iter_args(%sub_a = %elim_a, %sub_a1 = %elim_a1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
-              %4 = tensor.extract %sub_a1[%arg1, %arg3] : tensor<4x4xf32>
-              %5 = tensor.extract %sub_a1[%arg2, %arg3] : tensor<4x4xf32>
-              %6 = arith.mulf %3, %4 : f32
-              %7 = arith.subf %5, %6 : f32
-              %8 = tensor.insert %7 into %sub_a1[%arg2, %arg3] : tensor<4x4xf32>
-
-              %9 = tensor.extract %sub_a[%arg1, %arg3] : tensor<4x4xf32>
-              %10 = tensor.extract %sub_a[%arg2, %arg3] : tensor<4x4xf32>
-              %11 = arith.mulf %3, %9 : f32
-              %12 = arith.subf %10, %11 : f32
-              %13 = tensor.insert %12 into %sub_a[%arg2, %arg3] : tensor<4x4xf32>
-
-              scf.yield %13, %8 : tensor<4x4xf32>, tensor<4x4xf32>
-            }
-            scf.yield %sub_alloc, %sub_alloc_1 : tensor<4x4xf32>, tensor<4x4xf32>
-          } else {
-            scf.yield %elim_a, %elim_a1 : tensor<4x4xf32>, tensor<4x4xf32>
-          }
-
-          scf.yield %res_a, %res_a1 : tensor<4x4xf32>, tensor<4x4xf32>
-        }
-        scf.yield %elim_alloc, %elim_alloc_1 : tensor<4x4xf32>, tensor<4x4xf32>
-      }
-
-      // No memref.dealloc required.
-      equivalence.yield %final_alloc : tensor<4x4xf32>
+      scf.yield %new_alloc : tensor<4x4xf32>
     }
-    return %0 : tensor<4x4xf32>
+
+    // 3. Loop 2: Gauss-Jordan Elimination
+    // Notice how we pass %arg0 directly into outer_alloc_1!
+    %final_alloc, %final_alloc_1 = scf.for %arg1 = %c0 to %c4 step %c1 iter_args(%outer_alloc = %init_alloc, %outer_alloc_1 = %arg0) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
+      %1 = tensor.extract %outer_alloc_1[%arg1, %arg1] : tensor<4x4xf32>
+
+      // Normalize the pivot row
+      %norm_alloc, %norm_alloc_1 = scf.for %arg2 = %c0 to %c4 step %c1 iter_args(%norm_a = %outer_alloc, %norm_a1 = %outer_alloc_1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
+        %2 = tensor.extract %norm_a1[%arg1, %arg2] : tensor<4x4xf32>
+        %3 = arith.divf %2, %1 : f32
+        %4 = tensor.insert %3 into %norm_a1[%arg1, %arg2] : tensor<4x4xf32>
+
+        %5 = tensor.extract %norm_a[%arg1, %arg2] : tensor<4x4xf32>
+        %6 = arith.divf %5, %1 : f32
+        %7 = tensor.insert %6 into %norm_a[%arg1, %arg2] : tensor<4x4xf32>
+
+        scf.yield %7, %4 : tensor<4x4xf32>, tensor<4x4xf32>
+      }
+
+      // Eliminate other rows
+      %elim_alloc, %elim_alloc_1 = scf.for %arg2 = %c0 to %c4 step %c1 iter_args(%elim_a = %norm_alloc, %elim_a1 = %norm_alloc_1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
+        %2 = arith.cmpi ne, %arg2, %arg1 : index
+
+        %res_a, %res_a1 = scf.if %2 -> (tensor<4x4xf32>, tensor<4x4xf32>) {
+          %3 = tensor.extract %elim_a1[%arg2, %arg1] : tensor<4x4xf32>
+
+          %sub_alloc, %sub_alloc_1 = scf.for %arg3 = %c0 to %c4 step %c1 iter_args(%sub_a = %elim_a, %sub_a1 = %elim_a1) -> (tensor<4x4xf32>, tensor<4x4xf32>) {
+            %4 = tensor.extract %sub_a1[%arg1, %arg3] : tensor<4x4xf32>
+            %5 = tensor.extract %sub_a1[%arg2, %arg3] : tensor<4x4xf32>
+            %6 = arith.mulf %3, %4 : f32
+            %7 = arith.subf %5, %6 : f32
+            %8 = tensor.insert %7 into %sub_a1[%arg2, %arg3] : tensor<4x4xf32>
+
+            %9 = tensor.extract %sub_a[%arg1, %arg3] : tensor<4x4xf32>
+            %10 = tensor.extract %sub_a[%arg2, %arg3] : tensor<4x4xf32>
+            %11 = arith.mulf %3, %9 : f32
+            %12 = arith.subf %10, %11 : f32
+            %13 = tensor.insert %12 into %sub_a[%arg2, %arg3] : tensor<4x4xf32>
+
+            scf.yield %13, %8 : tensor<4x4xf32>, tensor<4x4xf32>
+          }
+          scf.yield %sub_alloc, %sub_alloc_1 : tensor<4x4xf32>, tensor<4x4xf32>
+        } else {
+          scf.yield %elim_a, %elim_a1 : tensor<4x4xf32>, tensor<4x4xf32>
+        }
+
+        scf.yield %res_a, %res_a1 : tensor<4x4xf32>, tensor<4x4xf32>
+      }
+      scf.yield %elim_alloc, %elim_alloc_1 : tensor<4x4xf32>, tensor<4x4xf32>
+    }
+
+    equivalence.yield %final_alloc : tensor<4x4xf32>
   }
+  func.return %0 : tensor<4x4xf32>
+}
 
   func.func private @dot(%arg0: tensor<4x4xf32>, %arg1: tensor<4x4xf32>) -> tensor<4x4xf32>
   func.func private @solve(%arg0: tensor<4x4xf32>, %arg1: tensor<4x4xf32>) -> tensor<4x4xf32>

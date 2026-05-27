@@ -422,41 +422,63 @@ class PDLInterpFunctions(InterpreterFunctions):
             attr_names: list[str],
             num_operands: int,
             num_attributes: int,
-    ) -> IRDLOperation:
-        # Get operation name
+    ) -> Operation:
         ctx = PDLInterpFunctions.get_ctx(interpreter)
         op_type = ctx.get_optional_op(op_name)
-        if op_type is None:
-            raise InterpretationError(
-                f"Could not find op type for name {op_name} in context"
-            )
 
-        # Split args into operands, attributes and result types based on operand segments
         operands = list(args[:num_operands])
-
-        assert issubclass(op_type, IRDLOperation)
-        existing_properties = op_type.get_irdl_definition().properties.keys()
+        result_types = list(args[num_operands + num_attributes:])
 
         attributes: dict[str, Attribute] = {}
         properties: dict[str, Attribute] = {}
+
+        # Handle registered operations
+        if op_type is not None:
+            if op_type.__name__ == "UnregisteredOpWithNameOp":
+                for name, prop_or_attr in zip(
+                        attr_names,
+                        args[num_operands: num_operands + num_attributes],
+                ):
+                    attributes[name] = prop_or_attr
+
+                return op_type.create(
+                    operands=operands,
+                    result_types=result_types,
+                    attributes=attributes,
+                )
+
+            assert issubclass(op_type, IRDLOperation)
+            existing_properties = op_type.get_irdl_definition().properties.keys()
+
+            for name, prop_or_attr in zip(
+                    attr_names,
+                    args[num_operands: num_operands + num_attributes],
+            ):
+                if name in existing_properties:
+                    properties[name] = prop_or_attr
+                else:
+                    attributes[name] = prop_or_attr
+
+            return op_type.create(
+                operands=operands,
+                result_types=result_types,
+                attributes=attributes,
+                properties=properties,
+            )
+
+        # Handle unregistered operations
         for name, prop_or_attr in zip(
                 attr_names,
                 args[num_operands: num_operands + num_attributes],
         ):
-            if name in existing_properties:
-                properties[name] = prop_or_attr
-            else:
-                attributes[name] = prop_or_attr
-        result_types = list(args[num_operands + num_attributes:])
+            attributes[name] = prop_or_attr  # Unregistered ops store everything as attributes
 
-        # Create the new operation
-        result_op = op_type.create(
+        return Operation.create(
+            name=op_name,
             operands=operands,
             result_types=result_types,
             attributes=attributes,
-            properties=properties,
         )
-        return result_op
 
     @impl(pdl_interp.CreateOperationOp)
     def run_create_operation(
@@ -499,19 +521,28 @@ class PDLInterpFunctions(InterpreterFunctions):
         # Split args into operands, attributes and result types based on operand segments
         operands = list(args[:num_operands])
 
-        assert issubclass(op_type, IRDLOperation)
-        existing_properties = op_type.get_irdl_definition().properties.keys()
-
         attributes: dict[str, Attribute] = {}
         properties: dict[str, Attribute] = {}
-        for name, prop_or_attr in zip(
-                attr_names,
-                args[num_operands: num_operands + num_attributes],
-        ):
-            if name in existing_properties:
-                properties[name] = prop_or_attr
-            else:
+
+        if op_type.__name__ == "UnregisteredOpWithNameOp":
+            for name, prop_or_attr in zip(
+                    attr_names,
+                    args[num_operands: num_operands + num_attributes],
+            ):
                 attributes[name] = prop_or_attr
+        else:
+            assert issubclass(op_type, IRDLOperation)
+            existing_properties = op_type.get_irdl_definition().properties.keys()
+
+            for name, prop_or_attr in zip(
+                    attr_names,
+                    args[num_operands: num_operands + num_attributes],
+            ):
+                if name in existing_properties:
+                    properties[name] = prop_or_attr
+                else:
+                    attributes[name] = prop_or_attr
+
         result_types = list(args[num_operands + num_attributes:])
 
         # Separate the regions and operands

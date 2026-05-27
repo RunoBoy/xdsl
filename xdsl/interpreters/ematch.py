@@ -86,6 +86,7 @@ class EmatchFunctions(InterpreterFunctions):
 
             # Skip region-bearing operations (like scf.if or equivalence.graph).
             # Deduplicating entire regions structurally is too aggressive for this phase.
+            # TODO: DELETE
             if len(op.regions) > 0:
                 self.known_ops[op] = op
                 continue
@@ -236,9 +237,8 @@ class EmatchFunctions(InterpreterFunctions):
         eclass_op = None
         insertpoint = None
 
-        # Find either the E-class, or the highest insertion point to create the new one
+        # If val is defined by a ClassOp, mark it
         if isinstance(val, OpResult):
-            # If val is defined by a ClassOp, mark it
             if isinstance(val.owner, equivalence.AnyClassOp):
                 eclass_op = val.owner
             else:
@@ -247,11 +247,12 @@ class EmatchFunctions(InterpreterFunctions):
             assert isinstance(val.owner, Block)
             insertpoint = InsertPoint.at_start(val.owner)
 
-        # If val has one use and it's a ClassOp, mark it
+        # Find if val is used by any ClassOp already
         if eclass_op is None:
-            if (user := val.get_user_of_unique_use()) is not None:
-                if isinstance(user, equivalence.AnyClassOp):
-                    eclass_op = user
+            for use in val.uses:
+                if isinstance(use.operation, equivalence.AnyClassOp):
+                    eclass_op = use.operation
+                    break
 
         # Ensure the pre-existing ClassOp is in the union_find
         if eclass_op is not None:
@@ -259,6 +260,14 @@ class EmatchFunctions(InterpreterFunctions):
                 self.eclass_union_find.find(eclass_op)
             except KeyError:
                 self.eclass_union_find.add(eclass_op)
+
+            rewriter = PDLInterpFunctions.get_rewriter(interpreter)
+            # Replace any outside uses that might have been unwrapped by remove_singleton_eclasses
+            rewriter.replace_uses_with_if(
+                val,
+                eclass_op.result,
+                lambda use: not isinstance(use.operation, equivalence.AnyClassOp)
+            )
             return eclass_op
 
         # If the value is not part of an eclass yet, create one
@@ -268,6 +277,7 @@ class EmatchFunctions(InterpreterFunctions):
         eclass_op = equivalence.ClassOp(val)
         rewriter.insert_op(eclass_op, insertpoint)
         self.eclass_union_find.add(eclass_op)
+        self.worklist.append(eclass_op)
 
         # Only replace values that are not inside an eclass
         rewriter.replace_uses_with_if(
@@ -722,6 +732,23 @@ class EmatchFunctions(InterpreterFunctions):
             self.worklist.clear()
             for c in todo:
                 self.repair(interpreter, c)
+
+    def remove_singleton_eclasses(self, graph: Operation):
+        """
+        Remove E-classes that have only a single operand, replacing their uses
+        with their sole operand.
+        """
+        for op in list(graph.walk()):
+            if isinstance(op, equivalence.AnyClassOp):
+                if len(op.operands) == 1:
+                    operand = op.operands[0]
+                    op.results[0].replace_all_uses_with(operand)
+                    if op in self.known_ops:
+                        self.known_ops.pop(op)
+                    if op.parent:
+                        op.parent.erase_op(op)
+                    else:
+                        op.erase()
 
     def execute_pending_rewrites(self, interpreter: Interpreter):
         """Execute all pending rewrites that were aggregated during matching."""

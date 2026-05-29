@@ -69,6 +69,7 @@ class EmatchSaturatePass(ModulePass):
                 break
 
             ematch_functions.rebuild(interpreter)
+            ematch_functions.remove_singleton_eclasses(graph)
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         """Apply PDL patterns using equality saturation on each equivalence.graph."""

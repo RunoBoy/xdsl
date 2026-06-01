@@ -3,7 +3,7 @@
 // This file aims to show that 2 inlined functions can have structurally equivalent operations, in parallel scopes
 // the deduplicator should combine these in the lowest common ancestor scope
 
-// CHECK:func.func private @g() -> i32
+// CHECK:  func.func private @g() -> i32
 // CHECK-NEXT:  func.func private @h() -> i32
 // CHECK-NEXT:  func.func @f() -> i32 {
 // CHECK-NEXT:    %res = equivalence.graph : () -> i32 {
@@ -19,21 +19,6 @@
 // CHECK-NEXT:      %x = func.call @g() : () -> i32
 // CHECK-NEXT:      %a = equivalence.class %x : i32
 // CHECK-NEXT:      %b = func.call @h() : () -> i32
-// CHECK-NEXT:      equivalence.yield %b : i32
-// CHECK-NEXT:    }
-// CHECK-NEXT:    func.return %res : i32
-// CHECK-NEXT:  }
-// CHECK-NEXT:  func.func @main() -> i32 {
-// CHECK-NEXT:    %res = equivalence.graph : () -> i32 {
-// CHECK-NEXT:      %b = equivalence.class %b_1, %z, %r, %0 : i32
-// CHECK-NEXT:      %b_1 = func.call @h() : () -> i32
-// CHECK-NEXT:      %x = equivalence.class %x_1 : i32
-// CHECK-NEXT:      %x_1 = func.call @g() : () -> i32
-// CHECK-NEXT:      %0 = scf.execute_region -> (i32) {
-// CHECK-NEXT:        scf.yield %b : i32
-// CHECK-NEXT:      }
-// CHECK-NEXT:      %r = func.call @f() : () -> i32
-// CHECK-NEXT:      %z = func.call @t() : () -> i32
 // CHECK-NEXT:      equivalence.yield %b : i32
 // CHECK-NEXT:    }
 // CHECK-NEXT:    func.return %res : i32

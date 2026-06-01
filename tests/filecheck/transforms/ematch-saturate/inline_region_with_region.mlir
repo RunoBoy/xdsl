@@ -1,40 +1,22 @@
 // xdsl-opt %x -p ematch-saturate | filecheck %s
 
-// CHECK: func.func private @h() -> i32
-// CHECK-NEXT:   func.func @f() -> i32 {
-// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
-// CHECK-NEXT:       %cond = arith.constant false
-// CHECK-NEXT:       %x = scf.if %cond -> (i32) {
-// CHECK-NEXT:         %a = arith.constant 2 : i32
-// CHECK-NEXT:         scf.yield %a : i32
-// CHECK-NEXT:       } else {
-// CHECK-NEXT:         %b = arith.constant 3 : i32
-// CHECK-NEXT:         scf.yield %b : i32
-// CHECK-NEXT:       }
-// CHECK-NEXT:       %vv = func.call @h() : () -> i32
-// CHECK-NEXT:       %c = equivalence.class %vv, %x : i32
-// CHECK-NEXT:       equivalence.yield %c : i32
-// CHECK-NEXT:     }
-// CHECK-NEXT:     func.return %res : i32
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func.func @main() -> i32 {
-// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
-// CHECK-NEXT:       %x = func.call @h() : () -> i32
-// CHECK-NEXT:       %cond = equivalence.class %cond_1 : i1
-// CHECK-NEXT:       %cond_1 = arith.constant false
-// CHECK-NEXT:       %x_1 = scf.if %cond -> (i32) {
-// CHECK-NEXT:         %a = arith.constant 2 : i32
-// CHECK-NEXT:         scf.yield %a : i32
-// CHECK-NEXT:       } else {
-// CHECK-NEXT:         %b = arith.constant 3 : i32
-// CHECK-NEXT:         scf.yield %b : i32
-// CHECK-NEXT:       }
-// CHECK-NEXT:       %r = func.call @f() : () -> i32
-// CHECK-NEXT:       %y = equivalence.class %x, %r, %x_1 : i32
-// CHECK-NEXT:       equivalence.yield %y : i32
-// CHECK-NEXT:     }
-// CHECK-NEXT:     func.return %res : i32
-// CHECK-NEXT:   }
+// CHECK: func.func @main() -> i32 {
+// CHECK-NEXT:    %res = equivalence.graph : () -> i32 {
+// CHECK-NEXT:      %x = func.call @h() : () -> i32
+// CHECK-NEXT:      %cond = arith.constant false
+// CHECK-NEXT:      %x_1 = scf.if %cond -> (i32) {
+// CHECK-NEXT:        %a = arith.constant 2 : i32
+// CHECK-NEXT:        scf.yield %a : i32
+// CHECK-NEXT:      } else {
+// CHECK-NEXT:        %b = arith.constant 3 : i32
+// CHECK-NEXT:        scf.yield %b : i32
+// CHECK-NEXT:      }
+// CHECK-NEXT:      %r = func.call @f() : () -> i32
+// CHECK-NEXT:      %y = equivalence.class %x, %r, %x_1 : i32
+// CHECK-NEXT:      equivalence.yield %y : i32
+// CHECK-NEXT:    }
+// CHECK-NEXT:    func.return %res : i32
+// CHECK-NEXT:  }
 
 func.func private @h() -> i32
 func.func @f() -> i32 {

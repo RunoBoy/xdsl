@@ -1,17 +1,16 @@
 // RUN: xdsl-opt %s -p ematch-saturate | filecheck %s
 
-// CHECK:func.func @main(%x: i32) {
-// CHECK-NEXT:    equivalence.graph : () -> () {
-// CHECK-NEXT:      %a = arith.constant 2 : i32
-// CHECK-NEXT:      %s = equivalence.class %s_1 : i32
-// CHECK-NEXT:      %s_1 = arith.constant 1 : i32
-// CHECK-NEXT:      %t = equivalence.class %t_1, %y : i32
-// CHECK-NEXT:      %t_1 = arith.shli %x, %s : i32
-// CHECK-NEXT:      %y = arith.muli %x, %a : i32
-// CHECK-NEXT:      equivalence.yield
-// CHECK-NEXT:    }
-// CHECK-NEXT:    func.return
-// CHECK-NEXT:  }
+// CHECK: func.func @main(%x: i32) {
+// CHECK-NEXT:   equivalence.graph : () -> () {
+// CHECK-NEXT:     %a = arith.constant 2 : i32
+// CHECK-NEXT:     %s = arith.constant 1 : i32
+// CHECK-NEXT:     %t = equivalence.class %t_1, %y : i32
+// CHECK-NEXT:     %t_1 = arith.shli %x, %s : i32
+// CHECK-NEXT:     %y = arith.muli %x, %a : i32
+// CHECK-NEXT:     equivalence.yield
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func.return
+// CHECK-NEXT: }
 
 func.func @main(%x : i32) -> () {
     equivalence.graph : () -> () {

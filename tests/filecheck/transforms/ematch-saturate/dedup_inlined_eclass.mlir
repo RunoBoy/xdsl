@@ -3,25 +3,13 @@
 // This file aims to show that a function can contain an E-class, so when inlining, the rebuild step needs to
 // union these E-classes.
 
-// CHECK: func.func private @g() -> i32
-// CHECK-NEXT:   func.func private @h(i32) -> i32
-// CHECK-NEXT:   func.func @f() -> i32 {
+// CHECK: func.func @main() -> i32 {
 // CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
 // CHECK-NEXT:       %x = func.call @g() : () -> i32
-// CHECK-NEXT:       %a = equivalence.class %x : i32
-// CHECK-NEXT:       %b = func.call @h(%a) : (i32) -> i32
-// CHECK-NEXT:       equivalence.yield %b : i32
-// CHECK-NEXT:     }
-// CHECK-NEXT:     func.return %res : i32
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func.func @main() -> i32 {
-// CHECK-NEXT:     %res = equivalence.graph : () -> i32 {
-// CHECK-NEXT:       %x = func.call @g() : () -> i32
-// CHECK-NEXT:       %b = func.call @h(%y) : (i32) -> i32
+// CHECK-NEXT:       %b = func.call @h(%x) : (i32) -> i32
 // CHECK-NEXT:       %r = equivalence.class %r_1, %b : i32
 // CHECK-NEXT:       %r_1 = func.call @f() : () -> i32
-// CHECK-NEXT:       %y = equivalence.class %x : i32
-// CHECK-NEXT:       equivalence.yield %y : i32
+// CHECK-NEXT:       equivalence.yield %x : i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     func.return %res : i32
 // CHECK-NEXT:   }

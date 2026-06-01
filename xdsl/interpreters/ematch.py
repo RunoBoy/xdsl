@@ -84,13 +84,6 @@ class EmatchFunctions(InterpreterFunctions):
             if op.has_trait(IsTerminator):
                 continue
 
-            # Skip region-bearing operations (like scf.if or equivalence.graph).
-            # Deduplicating entire regions structurally is too aggressive for this phase.
-            # TODO: DELETE
-            if len(op.regions) > 0:
-                self.known_ops[op] = op
-                continue
-
             # Feed the operation through the SRE deduplication engine!
             self._deduplicate_single_op(interpreter, op, op, start_empty=False)
 
